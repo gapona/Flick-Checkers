@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phaser Core</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    #app {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+  <!-- Must load before any game code (see PLAYABLES-SDK.md). No-op outside Playables.
+       Placed in head, not body: Vite's production build hoists the entry module
+       script into the head element (appended right before the closing head tag,
+       regardless of where that script originally sat in this source file) -- so this
+       tag has to already be in the head element too, or the built dist/index.html
+       ends up with the module script running first, breaking the certification-
+       required load order even though this source file's body-order looked correct.
+       Confirmed by inspecting the actual built output, not assumed. -->
+  <script src="https://www.youtube.com/game_api/v1"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
