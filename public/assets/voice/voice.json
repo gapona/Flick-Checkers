@@ -1,0 +1,287 @@
+{
+  "resources": [
+    "voice.ogg"
+  ],
+  "spritemap": {
+    "squeak_1": {
+      "start": 0.0,
+      "end": 0.262,
+      "loop": false
+    },
+    "squeak_2": {
+      "start": 0.352,
+      "end": 0.632,
+      "loop": false
+    },
+    "squeak_3": {
+      "start": 0.722,
+      "end": 0.988,
+      "loop": false
+    },
+    "squeak_4": {
+      "start": 1.078,
+      "end": 1.352,
+      "loop": false
+    },
+    "squeak_5": {
+      "start": 1.442,
+      "end": 1.722,
+      "loop": false
+    },
+    "squeak_6": {
+      "start": 1.812,
+      "end": 2.094,
+      "loop": false
+    },
+    "squeak_7": {
+      "start": 2.184,
+      "end": 2.46,
+      "loop": false
+    },
+    "gruff_1": {
+      "start": 2.55,
+      "end": 2.812,
+      "loop": false
+    },
+    "gruff_2": {
+      "start": 2.902,
+      "end": 3.182,
+      "loop": false
+    },
+    "gruff_3": {
+      "start": 3.272,
+      "end": 3.538,
+      "loop": false
+    },
+    "gruff_4": {
+      "start": 3.628,
+      "end": 3.902,
+      "loop": false
+    },
+    "gruff_5": {
+      "start": 3.992,
+      "end": 4.272,
+      "loop": false
+    },
+    "gruff_6": {
+      "start": 4.362,
+      "end": 4.644,
+      "loop": false
+    },
+    "gruff_7": {
+      "start": 4.734,
+      "end": 5.01,
+      "loop": false
+    },
+    "nasal_1": {
+      "start": 5.1,
+      "end": 5.362,
+      "loop": false
+    },
+    "nasal_2": {
+      "start": 5.452,
+      "end": 5.732,
+      "loop": false
+    },
+    "nasal_3": {
+      "start": 5.822,
+      "end": 6.088,
+      "loop": false
+    },
+    "nasal_4": {
+      "start": 6.178,
+      "end": 6.452,
+      "loop": false
+    },
+    "nasal_5": {
+      "start": 6.542,
+      "end": 6.822,
+      "loop": false
+    },
+    "nasal_6": {
+      "start": 6.912,
+      "end": 7.194,
+      "loop": false
+    },
+    "nasal_7": {
+      "start": 7.284,
+      "end": 7.56,
+      "loop": false
+    },
+    "airy_1": {
+      "start": 7.65,
+      "end": 7.912,
+      "loop": false
+    },
+    "airy_2": {
+      "start": 8.002,
+      "end": 8.282,
+      "loop": false
+    },
+    "airy_3": {
+      "start": 8.372,
+      "end": 8.638,
+      "loop": false
+    },
+    "airy_4": {
+      "start": 8.728,
+      "end": 9.002,
+      "loop": false
+    },
+    "airy_5": {
+      "start": 9.092,
+      "end": 9.372,
+      "loop": false
+    },
+    "airy_6": {
+      "start": 9.462,
+      "end": 9.744,
+      "loop": false
+    },
+    "airy_7": {
+      "start": 9.834,
+      "end": 10.11,
+      "loop": false
+    },
+    "burble_1": {
+      "start": 10.2,
+      "end": 10.462,
+      "loop": false
+    },
+    "burble_2": {
+      "start": 10.552,
+      "end": 10.832,
+      "loop": false
+    },
+    "burble_3": {
+      "start": 10.922,
+      "end": 11.188,
+      "loop": false
+    },
+    "burble_4": {
+      "start": 11.278,
+      "end": 11.552,
+      "loop": false
+    },
+    "burble_5": {
+      "start": 11.642,
+      "end": 11.922,
+      "loop": false
+    },
+    "burble_6": {
+      "start": 12.012,
+      "end": 12.294,
+      "loop": false
+    },
+    "burble_7": {
+      "start": 12.384,
+      "end": 12.66,
+      "loop": false
+    },
+    "dry_1": {
+      "start": 12.75,
+      "end": 13.012,
+      "loop": false
+    },
+    "dry_2": {
+      "start": 13.102,
+      "end": 13.382,
+      "loop": false
+    },
+    "dry_3": {
+      "start": 13.472,
+      "end": 13.738,
+      "loop": false
+    },
+    "dry_4": {
+      "start": 13.828,
+      "end": 14.102,
+      "loop": false
+    },
+    "dry_5": {
+      "start": 14.192,
+      "end": 14.472,
+      "loop": false
+    },
+    "dry_6": {
+      "start": 14.562,
+      "end": 14.844,
+      "loop": false
+    },
+    "dry_7": {
+      "start": 14.934,
+      "end": 15.21,
+      "loop": false
+    },
+    "booming_1": {
+      "start": 15.3,
+      "end": 15.562,
+      "loop": false
+    },
+    "booming_2": {
+      "start": 15.652,
+      "end": 15.932,
+      "loop": false
+    },
+    "booming_3": {
+      "start": 16.022,
+      "end": 16.288,
+      "loop": false
+    },
+    "booming_4": {
+      "start": 16.378,
+      "end": 16.652,
+      "loop": false
+    },
+    "booming_5": {
+      "start": 16.742,
+      "end": 17.022,
+      "loop": false
+    },
+    "booming_6": {
+      "start": 17.112,
+      "end": 17.394,
+      "loop": false
+    },
+    "booming_7": {
+      "start": 17.484,
+      "end": 17.76,
+      "loop": false
+    },
+    "plummy_1": {
+      "start": 17.85,
+      "end": 18.112,
+      "loop": false
+    },
+    "plummy_2": {
+      "start": 18.202,
+      "end": 18.482,
+      "loop": false
+    },
+    "plummy_3": {
+      "start": 18.572,
+      "end": 18.838,
+      "loop": false
+    },
+    "plummy_4": {
+      "start": 18.928,
+      "end": 19.202,
+      "loop": false
+    },
+    "plummy_5": {
+      "start": 19.292,
+      "end": 19.572,
+      "loop": false
+    },
+    "plummy_6": {
+      "start": 19.662,
+      "end": 19.944,
+      "loop": false
+    },
+    "plummy_7": {
+      "start": 20.034,
+      "end": 20.31,
+      "loop": false
+    }
+  }
+}

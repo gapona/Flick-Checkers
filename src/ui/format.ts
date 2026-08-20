@@ -15,3 +15,26 @@ export function titleCase(id: string): string {
     .map((part) => (part.length > 0 ? part[0].toUpperCase() + part.slice(1) : part))
     .join(' ')
 }
+
+/**
+ * `'2026-08-20'` -> `'20 Aug'`, in the player's own language.
+ *
+ * **Formatted in UTC, and that is the whole reason this is a function rather than a call site.**
+ * `daily/puzzle.ts` turns the day over at midnight UTC so that two players in different time zones
+ * are never on different puzzles — which means the date a menu prints has to be the puzzle's day,
+ * not the device's. Handing `new Date()` to a formatter with no `timeZone` gives the local day, and
+ * for anybody east or west of UTC there is a window every night where the button would name one day
+ * and the button would open another.
+ *
+ * Falls back to the raw key if `Intl` is unavailable or the string is not a date — a menu label is
+ * never worth throwing over.
+ */
+export function formatDayKey(isoDay: string, locale: string): string {
+  const at = Date.parse(`${isoDay}T00:00:00Z`)
+  if (Number.isNaN(at)) return isoDay
+  try {
+    return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(at))
+  } catch {
+    return isoDay
+  }
+}

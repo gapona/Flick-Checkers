@@ -1,7 +1,13 @@
-import * as Phaser from 'phaser'
+// Type-only, like `platform/yt.ts` and `platform/adGate.ts`: this module needs `Phaser.Game` as a
+// parameter type and never calls a `Phaser.*` runtime API. A value import would execute the whole
+// package — whose init code reads `window` unconditionally — the moment anything in the save layer
+// is imported outside a browser (a Node test, a tooling script).
+import type * as Phaser from 'phaser'
 import { YTEvents } from '../platform/yt'
 import { load, save } from './save'
-import { DEFAULT_SAVE_STATE, SaveState } from './types'
+// `type SaveState` — see the same note in `save.ts`: a plain named import of a type breaks every
+// `node`-run script that reaches this module.
+import { DEFAULT_SAVE_STATE, type SaveState } from './types'
 
 const SAVE_DEBOUNCE_MS = 2000
 

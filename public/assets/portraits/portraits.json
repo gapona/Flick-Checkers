@@ -1,0 +1,397 @@
+{
+ "textures": [
+  {
+   "image": "portraits.webp",
+   "format": "RGB888",
+   "size": {
+    "w": 800,
+    "h": 1300
+   },
+   "scale": 1,
+   "frames": [
+    {
+     "filename": "recruit.png",
+     "frame": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "drummer.png",
+     "frame": {
+      "x": 200,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "fishwife.png",
+     "frame": {
+      "x": 400,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "cook.png",
+     "frame": {
+      "x": 600,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "sergeant.png",
+     "frame": {
+      "x": 0,
+      "y": 260,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "medic.png",
+     "frame": {
+      "x": 200,
+      "y": 260,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "watchmaker.png",
+     "frame": {
+      "x": 400,
+      "y": 260,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "quartermaster.png",
+     "frame": {
+      "x": 600,
+      "y": 260,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "cavalry.png",
+     "frame": {
+      "x": 0,
+      "y": 520,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "schoolteacher.png",
+     "frame": {
+      "x": 200,
+      "y": 520,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "scout.png",
+     "frame": {
+      "x": 400,
+      "y": 520,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "gunner.png",
+     "frame": {
+      "x": 600,
+      "y": 520,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "ferryman.png",
+     "frame": {
+      "x": 0,
+      "y": 780,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "sapper.png",
+     "frame": {
+      "x": 200,
+      "y": 780,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "partisan.png",
+     "frame": {
+      "x": 400,
+      "y": 780,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "sniper.png",
+     "frame": {
+      "x": 600,
+      "y": 780,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "chessmaster.png",
+     "frame": {
+      "x": 0,
+      "y": 1040,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    },
+    {
+     "filename": "marshal.png",
+     "frame": {
+      "x": 200,
+      "y": 1040,
+      "w": 200,
+      "h": 260
+     },
+     "rotated": false,
+     "trimmed": false,
+     "spriteSourceSize": {
+      "x": 0,
+      "y": 0,
+      "w": 200,
+      "h": 260
+     },
+     "sourceSize": {
+      "w": 200,
+      "h": 260
+     }
+    }
+   ]
+  }
+ ],
+ "meta": {
+  "app": "gen_chapaev_bots.py",
+  "version": "1.0"
+ }
+}

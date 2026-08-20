@@ -74,6 +74,35 @@ export function getTheme(): ThemeConfig {
   return theme
 }
 
+let pressSound: (() => void) | null = null
+
+/**
+ * Registers the click every widget in this kit plays when it is pressed. Same
+ * "register a config once at boot" shape as {@link setTheme} — and deliberately a CALLBACK, not a
+ * sound key: the kit stays unaware of `src/audio/`, of which cue is the click, and of whether the
+ * game has audio at all. Nothing registered means nothing plays.
+ *
+ * It lives here rather than at ~15 call sites because a button that clicks in one menu and not in
+ * another is the kind of inconsistency nobody files a bug about and everybody feels. Fired on
+ * POINTER_DOWN, next to the press animation — the press is what the player did; whether the
+ * action then succeeds is the caller's business.
+ */
+export function setPressSound(play: (() => void) | null): void {
+  pressSound = play
+}
+
+/**
+ * Plays whatever `setPressSound` registered.
+ *
+ * **Exported for `ui/button.ts`**, and that is the fix for a whole silent game rather than a tidy-up:
+ * the three widgets in THIS file called it and `gameButton` — which every screen in the game is
+ * actually built from — never did. So the click existed, was wired in `main.ts`, was documented, and
+ * could only be heard on widgets the game had stopped using.
+ */
+export function playPressSound(): void {
+  pressSound?.()
+}
+
 /** Numeric `0xRRGGBB` -> CSS `'#rrggbb'`, for Phaser `Text` styles (which want a CSS string,
  * unlike `Graphics`' numeric colors). */
 export function toCssColor(color: number): string {
@@ -329,6 +358,7 @@ export function neonButton(scene: Phaser.Scene, text: string, color: number, fon
   container.on(Phaser.Input.Events.POINTER_DOWN, () => {
     pressed = true
     container.setScale(0.96)
+    playPressSound()
     if (hoverColor) redraw()
   })
   container.on(Phaser.Input.Events.POINTER_UP, () => {
@@ -408,6 +438,19 @@ export interface RowButton {
   setColor(color: number): void
   setSize(width: number, height: number): void
   setFontSize(size: number): void
+  /**
+   * Parents a caller-owned object into the row's RESERVED (third) column and keeps it positioned
+   * there through every later `setSize()`.
+   *
+   * That column has always been reserved and unrendered — the row skips it precisely so a caller
+   * can put something of its own there — but until this existed the caller also had to re-derive
+   * the column geometry itself, from a `width` only the row knows and a `-halfW` origin only the
+   * row's `redraw()` understands. Two places computing one position is how they drift.
+   *
+   * The object is added to the row's container, so it inherits the press-scale and is destroyed
+   * with the row. Call once, at creation.
+   */
+  setSlot(object: Phaser.GameObjects.Image): void
 }
 
 /**
@@ -423,7 +466,7 @@ export interface RowButton {
  * redraw.
  */
 export function rowButton(scene: Phaser.Scene, leftLabel: string, resultLabel: string, accentLabel: string, columns: RowColumns, initialColor: number, fontSize = 18): RowButton {
-  const [leftCol, resultCol, , accentCol] = columns
+  const [leftCol, resultCol, slotCol, accentCol] = columns
   const radius = getTheme().radius
   const bgColor = getTheme().colors.surface
 
@@ -440,6 +483,7 @@ export function rowButton(scene: Phaser.Scene, leftLabel: string, resultLabel: s
   const container = scene.add.container(0, 0, [bg, border, leftText, resultText, accentText])
 
   let hovered = false
+  let slot: Phaser.GameObjects.Image | null = null
   let color = initialColor
   let width = MIN_TOUCH_TARGET * 3
   let height = MIN_TOUCH_TARGET
@@ -462,6 +506,9 @@ export function rowButton(scene: Phaser.Scene, leftLabel: string, resultLabel: s
     leftText.setPosition(-halfW + leftCol.x * width, 0)
     resultText.setPosition(-halfW + resultCol.x * width, 0)
     accentText.setPosition(-halfW + accentCol.x * width, 0)
+    // The reserved column, if the caller filled it. Same conversion as the three managed texts,
+    // for the same reason — the object must move when the row is resized.
+    slot?.setPosition(-halfW + slotCol.x * width, 0)
 
     // Same footprint-vs-hit-area split as neonButton — .width/.height reflect the row's
     // caller-set box exactly (there's no glow padding here to differ from it).
@@ -494,7 +541,10 @@ export function rowButton(scene: Phaser.Scene, leftLabel: string, resultLabel: s
     container.setScale(1)
     redraw()
   })
-  container.on(Phaser.Input.Events.POINTER_DOWN, () => container.setScale(0.98))
+  container.on(Phaser.Input.Events.POINTER_DOWN, () => {
+    container.setScale(0.98)
+    playPressSound()
+  })
   container.on(Phaser.Input.Events.POINTER_UP, () => container.setScale(1))
 
   return {
@@ -510,6 +560,11 @@ export function rowButton(scene: Phaser.Scene, leftLabel: string, resultLabel: s
     setColor(newColor: number) {
       color = newColor
       accentText.setColor(toCssColor(newColor))
+      redraw()
+    },
+    setSlot(object: Phaser.GameObjects.Image) {
+      slot = object
+      container.add(object)
       redraw()
     },
     setSize(newWidth: number, newHeight: number) {
@@ -673,7 +728,10 @@ export function circleBackButton(scene: Phaser.Scene, color: number = getTheme()
     container.setScale(1)
     redraw()
   })
-  container.on(Phaser.Input.Events.POINTER_DOWN, () => container.setScale(0.96))
+  container.on(Phaser.Input.Events.POINTER_DOWN, () => {
+    container.setScale(0.96)
+    playPressSound()
+  })
   container.on(Phaser.Input.Events.POINTER_UP, () => container.setScale(1))
 
   return {

@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Phaser Core</title>
+  <title>Flick Checkers</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      background: #000;
+      /* Same value as GameConfig.backgroundColor (gameTheme.ts's backgroundTop) — this is what
+         shows for the frames before the canvas exists, so a black (or any other) fill here
+         reads as a flash on boot. Kept in sync by hand: HTML can't import the TS const. */
+      background: #3d1160;
       overflow: hidden;
     }
     #app {

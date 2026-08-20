@@ -56,6 +56,28 @@ export interface ScrollableCameraRegion {
   destroy(): void
 }
 
+/**
+ * The clip height for a list that has to fit BETWEEN two fixed things — a top bar above, a pinned
+ * button or a nav bar below.
+ *
+ * **It exists because the obvious spelling is wrong and all three lists in this game had it.** They
+ * wrote `Math.max(80, bottom - top)`: a minimum meant to keep the list usable, which on a short
+ * screen grants the list pixels the screen does not have and pushes it straight through whatever
+ * was below. Measured in landscape, where the two bars eat half the height: the shop's list ran
+ * **38px past the nav bar at 740x360 and 8px past it at 844x390** — a real phone in landscape — and
+ * because a later camera OWNS its viewport's pixels rather than compositing over them (see this
+ * module's own header), the nav bar's icons were not covered but ERASED. The modes list ran 30px
+ * under its own Start button, with the third line of the first card printed beneath it.
+ *
+ * A floor is never the fix. If the space left is too small to be useful, the layout has to give
+ * something up ABOVE the list — `Modes` drops its section heading, which the nav bar already says —
+ * and if there is still nothing left, a list of nothing is the honest answer. `setBounds` floors
+ * the viewport at 1px on its own, so 0 is safe to pass.
+ */
+export function listHeightBetween(top: number, bottom: number): number {
+  return Math.max(0, bottom - top)
+}
+
 export function scrollableCameraRegion(scene: Phaser.Scene, bounds: ScrollRegionBounds): ScrollableCameraRegion {
   const camera = scene.cameras.add(bounds.x, bounds.y, Math.max(1, bounds.width), Math.max(1, bounds.height))
   return {

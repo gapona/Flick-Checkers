@@ -1,20 +1,43 @@
 {
-  "name": "Phaser_Core",
-  "version": "1.3.0",
-  "description": "",
+  "name": "flick-checkers",
+  "version": "0.1.0",
+  "description": "Chapaev — flick your checkers off the board, for YouTube Playables",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && node scripts/check-bundle.mjs",
     "bundle": "npm run build && node scripts/make-bundle.mjs",
     "preview": "vite preview",
-    "verify:scroll": "node --import ./scripts/register-ts-loader.mjs scripts/verify-scroll-momentum.mjs"
+    "verify:sim": "node --import ./scripts/register-ts-loader.mjs scripts/verify-sim.mjs",
+    "bench:sim": "node --import ./scripts/register-ts-loader.mjs scripts/bench-sim.mjs",
+    "verify:bot": "node --import ./scripts/register-ts-loader.mjs scripts/verify-bot.mjs",
+    "verify:daily": "node --import ./scripts/register-ts-loader.mjs scripts/verify-daily.mjs",
+    "verify:balance": "node --import ./scripts/register-ts-loader.mjs scripts/verify-balance.mjs",
+    "verify:branches": "node --import ./scripts/register-ts-loader.mjs scripts/verify-branches.mjs",
+    "verify:feel": "node --import ./scripts/register-ts-loader.mjs scripts/verify-feel.mjs",
+    "verify:contrast": "node --import ./scripts/register-ts-loader.mjs scripts/verify-contrast.mjs",
+    "verify:fit": "node --import ./scripts/register-ts-loader.mjs scripts/verify-fit.mjs",
+    "verify:scroll": "node --import ./scripts/register-ts-loader.mjs scripts/verify-scroll-momentum.mjs",
+    "test:gameplay": "node --import ./scripts/register-ts-loader.mjs --test \"tests/gameplay/*.test.ts\"",
+    "test:platform": "node --import ./scripts/register-ts-loader.mjs --test --test-concurrency=1 \"tests/platform/*.test.ts\"",
+    "shots": "node --import ./scripts/register-ts-loader.mjs tests/platform/shots.ts",
+    "assets": "node scripts/make-atlas.mjs",
+    "daily": "node --import ./scripts/register-ts-loader.mjs scripts/make-daily.mjs",
+    "audio": "node scripts/make-audio.mjs",
+    "voice": "python scripts/make-voice.py",
+    "verify:content": "node --import ./scripts/register-ts-loader.mjs scripts/verify-content.mjs",
+    "test": "npm run verify:sim && npm run verify:fit && npm run verify:contrast && npm run verify:scroll && npm run verify:content && npm run test:gameplay",
+    "sheet": "node --import ./scripts/register-ts-loader.mjs scripts/render-skin-sheet.mjs",
+    "sheet:branches": "node --import ./scripts/register-ts-loader.mjs scripts/render-branch-sheet.mjs",
+    "tournament": "node --import ./scripts/register-ts-loader.mjs scripts/tournament.mjs"
   },
   "dependencies": {
     "phaser": "^4.2.0"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.5",
     "archiver": "^8.0.0",
+    "playwright-core": "^1.62.1",
     "typescript": "^5.5.3",
     "vite": "^6.0.0"
   },

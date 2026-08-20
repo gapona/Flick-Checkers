@@ -1,6 +1,10 @@
 import { loadData as ytLoadData, saveData as ytSaveData, logError, logWarning } from '../platform/yt'
 import { migrate } from './migrate'
-import { DEFAULT_SAVE_STATE, SaveState } from './types'
+// `SaveState` is a TYPE and has to be imported as one: Node's native TS stripping turns a plain
+// named import into a runtime lookup, so any `node`-run script that reaches this module through
+// `save/store.ts` dies with "does not provide an export named 'SaveState'". That is how
+// `tests/gameplay/save.test.ts` found it.
+import { DEFAULT_SAVE_STATE, type SaveState } from './types'
 
 // ytgame.game.saveData()'s hard limit — exceeding it rejects with SIZE_LIMIT_EXCEEDED.
 const SAVE_SIZE_LIMIT_BYTES = 3 * 1024 * 1024

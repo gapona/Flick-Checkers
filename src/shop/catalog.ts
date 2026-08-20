@@ -18,7 +18,6 @@ export interface ShopItem {
    * key with no match, the same "dynamic content, optional translation" convention other
    * generated display-name lookups in this kind of project use. */
   titleKey: string
-  icon: string
   /** `'consumable'` — repeatable; `Shop.ts` calls the purchaser's `onPurchase` callback and
    * the game applies whatever effect it wants (grant a hint, extend time, ...); the shop
    * itself only ever debits coins, it has no idea what a consumable "does". `'unlock'` — a

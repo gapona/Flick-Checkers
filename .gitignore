@@ -15,3 +15,5 @@ yarn-error.log*
 
 .DS_Store
 /CGDealers Publisher Portal.html
+# Python bytecode from scripts/make-voice.py
+__pycache__/

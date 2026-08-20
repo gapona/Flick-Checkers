@@ -8,7 +8,11 @@ import { YTEvents } from './yt'
  * needing to remember to register it; only new *overlay* scenes (menus/dialogs meant to
  * stay interactive during a pause, like `Settings` and `Shop`) need to be added here.
  */
-const OVERLAY_SCENES = new Set(['Settings', 'Shop'])
+// Shop and Modes LEFT this set when they became bottom-navigation destinations rather than
+// launched overlays: they are ordinary scenes now, and a platform pause should freeze them like any
+// other. What remains is what is genuinely launched over something else and must keep its own close
+// button alive through a pause — otherwise the player is stuck behind a dialog they cannot dismiss.
+const OVERLAY_SCENES = new Set(['Settings', 'MatchResult', 'DailyResult', 'Confirm', 'Opponents'])
 
 /**
  * Freezes gameplay on `YTEvents.PAUSE` and unfreezes it on `YTEvents.RESUME` — the
