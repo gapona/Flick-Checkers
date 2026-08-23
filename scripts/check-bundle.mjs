@@ -153,7 +153,7 @@ if (existsSync(metadataPath)) {
     if (!existsSync(path.join(ROOT, 'store', file))) fail(`store/metadata.json: the ${aspect} thumbnail "${file}" does not exist.`)
   }
 } else {
-  // Not a warning yet: there is nothing to describe until the game exists (CHAPAEV-PLAN.md §10,
+  // Not a warning yet: there is nothing to describe until the game exists (GAME-PLAN.md §10,
   // S13). The validation above is kept live regardless, so the file is checked from the moment it
   // is first written rather than on the day of the submission it would block.
   console.log('[check-bundle] store/metadata.json not present yet — portal metadata lands with S13.')

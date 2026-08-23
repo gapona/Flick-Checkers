@@ -982,6 +982,78 @@ function drawPower(ctx, size) {
   ctx.fill()
 }
 
+/**
+ * The tour's pointing hand (`scenes/Coach.ts`).
+ *
+ * A pointing INDEX FINGER rather than a mouse cursor: this game is played with a thumb on a phone,
+ * and an arrow cursor is a picture of a device most of its players do not have. Three rounded
+ * shapes — fist, finger, thumb — that merge into one silhouette, because what has to survive is the
+ * OUTLINE: it is drawn at ~56px over a dimmed screen with a lit control behind it.
+ *
+ * Drawn with this atlas's dark contour rather than the flat white a sibling project used, for the
+ * same reason every other pictogram here carries one: the game tints it gold, a tint MULTIPLIES, and
+ * gold on the lit face of a spotlit button is gold on gold. The contour is what keeps the shape a
+ * shape whatever it is standing on.
+ *
+ * The knuckle creases are punched back OUT afterwards. Without them the whole thing is a mitten:
+ * what says "hand" at this size is the separations, not the boundary.
+ */
+function drawHand(ctx, size) {
+  const u = size / 96
+  /**
+   * One rounded rectangle as a SUB-PATH — no `beginPath`, unlike the file's own `roundedRect`.
+   *
+   * That is the whole reason this is here: three calls to a helper that opens its own path leave
+   * only the last shape in the buffer, and the first version of this icon shipped to the contact
+   * sheet as a lone thumb with two floating creases beside it.
+   */
+  const part = (x, y, w, h, r) => {
+    ctx.moveTo((x + r) * u, y * u)
+    ctx.arcTo((x + w) * u, y * u, (x + w) * u, (y + h) * u, r * u)
+    ctx.arcTo((x + w) * u, (y + h) * u, x * u, (y + h) * u, r * u)
+    ctx.arcTo(x * u, (y + h) * u, x * u, y * u, r * u)
+    ctx.arcTo(x * u, y * u, (x + w) * u, y * u, r * u)
+    ctx.closePath()
+  }
+  const shapes = () => {
+    ctx.beginPath()
+    part(24, 36, 51, 51, 18)
+    part(31.5, 6, 19.5, 42, 9.75)
+    part(15, 49.5, 24, 21, 10.5)
+  }
+
+  // Stroke the three sub-paths, then fill the UNION over the top. The stroke lays contour lines
+  // through the overlaps too, and the fill is what buries them — the same order `outlined()` uses,
+  // and the reason the silhouette comes out with one outline rather than three.
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  shapes()
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = 9 * u
+  ctx.stroke()
+  shapes()
+  ctx.fillStyle = '#ffffff'
+  ctx.fill()
+
+  // The folded knuckles and the notch beside the finger, drawn back ON in the contour colour.
+  // Without them the whole thing is a mitten: what says "hand" at this size is the separations,
+  // not the boundary.
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = 4 * u
+  for (const y of [52.5, 67.5]) {
+    ctx.beginPath()
+    // Stopping short of the silhouette on both sides: a crease that reaches the contour reads as a
+    // notch cut out of the hand rather than as a fold in it.
+    ctx.moveTo(58 * u, y * u)
+    ctx.lineTo(70 * u, y * u)
+    ctx.stroke()
+  }
+  ctx.beginPath()
+  ctx.moveTo(52.8 * u, 37.5 * u)
+  ctx.lineTo(52.8 * u, 49.5 * u)
+  ctx.stroke()
+}
+
 function roundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
@@ -1008,7 +1080,7 @@ function roundedRect(ctx, x, y, w, h, r) {
  *
  * This file used to emit 24 of them — `man`/`king`/`tile` in four skins — and every one was a
  * DRAUGHTS sprite: an ellipse squashed 1.6:1 for an isometric board, with headroom reserved above
- * it for a crown. CHAPAEV-PLAN.md §2 cancelled the isometry and the game has no kings, so nothing
+ * it for a crown. GAME-PLAN.md §2 cancelled the isometry and the game has no kings, so nothing
  * had loaded a single one of them for a long time; they were 90 KB of a 0.67 MB bundle describing
  * a game that is not this one.
  *
@@ -1028,7 +1100,7 @@ function roundedRect(ctx, x, y, w, h, r) {
  * Everything the atlas still ships, and nothing else.
  *
  * The dropped frames were all speaking about a different game or a different UI: the draughts
- * pieces and tiles (see above), `cell-select`/`cell-target` (Chapaev never selects a CELL — its
+ * pieces and tiles (see above), `cell-select`/`cell-target` (this game never selects a CELL — its
  * gate is a disc under the finger, `sim/aim.ts`), the draughts mascot, and `ui-panel`/`ui-button`,
  * which were the neon widget kit's and are superseded by `src/ui/button.ts` drawing its own.
  *
@@ -1046,6 +1118,9 @@ const SPRITES = [
   { name: 'icon-gear', w: 64, h: 64, draw: (ctx, w) => drawGear(ctx, w) },
   { name: 'icon-retake', w: 64, h: 64, draw: (ctx, w) => drawRetake(ctx, w) },
   { name: 'icon-power', w: 64, h: 64, draw: (ctx, w) => drawPower(ctx, w) },
+  // 96 rather than the other icons' 64: the tour draws this at about 56 on screen, and a
+  // pictogram scaled UP from its own size is the one soft thing on a screen made of crisp edges.
+  { name: 'icon-hand', w: 96, h: 96, draw: (ctx, w) => drawHand(ctx, w) },
   { name: 'particle-spark', w: 32, h: 32, draw: (ctx, w) => drawSpark(ctx, w) },
   { name: 'particle-shard', w: 32, h: 32, draw: (ctx, w) => drawShard(ctx, w) },
   { name: 'rim-strip', w: 128, h: 28, draw: drawRimStrip },

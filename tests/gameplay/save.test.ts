@@ -308,3 +308,69 @@ describe('a saved two-player match', () => {
     }
   })
 })
+
+/**
+ * The tutorial flag.
+ *
+ * Additive and versionless, like `SavedMatch.twoPlayer` and `bestCombo` before it — so the thing
+ * worth pinning down is the same one: a save written before the field existed must read as `false`
+ * and not as `undefined`, because `MainMenu` branches on it to decide whether to offer the tutorial
+ * at all, and a tri-state there is a button that appears on some saves and not others for no reason
+ * anybody chose.
+ */
+describe('the tutorial flag', () => {
+  const v4 = (extra: Record<string, unknown>): Record<string, unknown> => ({
+    v: 4,
+    bestScore: 0,
+    coins: 0,
+    purchases: [],
+    settings: { sfx: 1, music: 1, sfxRestore: 1, musicRestore: 1 },
+    rules: 'classic',
+    opponent: 'recruit',
+    defeated: [],
+    skins: { board: 'default', pieces: 'default' },
+    stats: {},
+    match: null,
+    daily: { lastPlayed: null, streak: 0, best: 0, solvedToday: false },
+    ...extra,
+  })
+
+  it('a save written before the tutorial existed has not done it', () => {
+    const state = migrate(v4({}))
+    assert.ok(state)
+    assert.equal(state.tutorialDone, false)
+  })
+
+  it('survives a round trip', () => {
+    const state = migrate(v4({ tutorialDone: true }))
+    assert.ok(state)
+    assert.equal(state.tutorialDone, true)
+  })
+
+  it('anything that is not exactly true has not done it', () => {
+    for (const junk of ['true', 1, {}, null]) {
+      const state = migrate(v4({ tutorialDone: junk }))
+      assert.ok(state)
+      assert.equal(state.tutorialDone, false, `${JSON.stringify(junk)} should not count as finished`)
+    }
+  })
+
+  it('a v1 payload climbs the whole ladder and still has not done it', () => {
+    const state = migrate({
+      v: 1,
+      bestScore: 10,
+      coins: 5,
+      purchases: [],
+      settings: { sound: true, music: false },
+      rules: 'classic',
+      difficulty: 'easy',
+      skins: { board: 'default', pieces: 'default' },
+      stats: {},
+    })
+    assert.ok(state)
+    assert.equal(state.tutorialDone, false)
+    // And the rest of the ladder still ran — the flag must not have short-circuited anything.
+    assert.equal(state.v, SAVE_SCHEMA_VERSION)
+    assert.equal(state.settings.music, 0)
+  })
+})

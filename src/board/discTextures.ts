@@ -10,7 +10,7 @@ import type { PieceSet, PieceSetId, Ramp } from '../game/skins'
  * caller, which is what makes 35 combinations one code path instead of 35 assets. The atlas holds
  * what is genuinely fixed (the coin, the rim, the particles) and no disc frame at all.
  *
- * The shadow is a separate texture for the reason CHAPAEV-PLAN.md §2 gives: baked into the disc it
+ * The shadow is a separate texture for the reason GAME-PLAN.md §2 gives: baked into the disc it
  * travels with it, so a disc tumbling off the edge takes its shadow along and reads as a sticker
  * rather than a solid object on a surface.
  *
@@ -39,7 +39,7 @@ import type { PieceSet, PieceSetId, Ramp } from '../game/skins'
 /** The thick dark contour that holds a disc readable at a ~37px tile on a phone. */
 
 /**
- * The stencil a branch of arms wears on its face (CHAPAEV-PLAN.md §4).
+ * The stencil a branch of arms wears on its face (GAME-PLAN.md §4).
  *
  * Named after the thing drawn rather than after the stroke that draws it (`'rifles'`, not
  * `'cross'`), because these stopped being strokes: each is a constructed silhouette chosen and

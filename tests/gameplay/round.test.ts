@@ -1,6 +1,6 @@
 ﻿/**
- * The turn matrix of CHAPAEV-PLAN.md §3 — S6's definition of done, which asks for a scenario per
- * flag of `ChapaevRules`.
+ * The turn matrix of GAME-PLAN.md §3 — S6's definition of done, which asks for a scenario per
+ * flag of `RuleSet`.
  *
  * Organised by flag rather than by function, because that is the thing being specified: each block
  * below is one rule, on and off, plus whatever it collides with.
@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { BLITZ_RULES, CLASSIC_RULES, type ChapaevRules } from '../../src/game/rules'
+import { BLITZ_RULES, CLASSIC_RULES, type RuleSet } from '../../src/game/rules'
 import { createRound, forfeitShot, isOnHomeRank, resolveShot, summarise, PENALTY_SHOTS } from '../../src/game/round'
 import { infantryFormation } from '../../src/game/formations'
 import { runToRest } from '../../src/sim/shoot'
@@ -20,12 +20,12 @@ function contested() {
   return board(at(0, 'player', 3, 7), at(1, 'player', 4, 7), at(2, 'opponent', 3, 0), at(3, 'opponent', 4, 0))
 }
 
-function rules(overrides: Partial<ChapaevRules>): ChapaevRules {
+function rules(overrides: Partial<RuleSet>): RuleSet {
   return { ...CLASSIC_RULES, ...overrides }
 }
 
 /** One shot by the side to move, with a fabricated result. */
-function shoot(round: ReturnType<typeof createRound>, set: ChapaevRules, state = contested(), fake = {}) {
+function shoot(round: ReturnType<typeof createRound>, set: RuleSet, state = contested(), fake = {}) {
   return resolveShot(round, set, state, METRICS, shotOutcome({ shooter: round.turn, ...fake }))
 }
 
@@ -382,7 +382,7 @@ describe('bumperRim and piecesPerSide', () => {
 describe('end to end, through the real solver', () => {
   test('a full-power shot up the column takes the enemy disc — and the turn still passes', () => {
     // The shipped default alternates strictly: no set turns `extraShotOnKnockout` on any more, and
-    // the reason is measured rather than asserted — `npm run verify:balance`, CHAPAEV-PLAN.md §3.
+    // the reason is measured rather than asserted — `npm run verify:balance`, GAME-PLAN.md §3.
     // What this covers is that a knockout is really a knockout end to end, through the real solver.
     const round = createRound('player')
     const state = board(at(0, 'player', 3, 7), at(1, 'player', 5, 7), at(2, 'opponent', 3, 0), at(3, 'opponent', 6, 0))
@@ -397,7 +397,7 @@ describe('end to end, through the real solver', () => {
   })
 
   test('the flag still works end to end for the arcade mode that will want it', () => {
-    // `extraShotOnKnockout` ships off in every rule set but stays in `ChapaevRules`. A flag nothing
+    // `extraShotOnKnockout` ships off in every rule set but stays in `RuleSet`. A flag nothing
     // switches on is a flag that quietly stops working, so the real solver drives it here too.
     const set = { ...CLASSIC_RULES, extraShotOnKnockout: true }
     const round = createRound('player')
@@ -445,7 +445,7 @@ describe('end to end, through the real solver', () => {
 })
 
 /**
- * The numbers the result panel shows (chunk 10 of `PROMPT-UI-CHAPAEV.md`).
+ * The numbers the result panel shows (chunk 10 of `PROMPT-UI.md`).
  *
  * They live on the round rather than being tallied by the scene for one reason, and it is the reason
  * worth testing: a round can be saved and resumed, and a counter kept in `Game` would silently reset

@@ -156,7 +156,7 @@ export interface DragHandlers {
    * further callback fires for it.
    *
    * This is where the caller decides whether the press means anything — for the aim gesture, whether
-   * it landed on one of the player's own live discs (CHAPAEV-PLAN.md §2, trap 4). Refusing is normal
+   * it landed on one of the player's own live discs (GAME-PLAN.md §2, trap 4). Refusing is normal
    * and silent: most presses on a board are not the start of a shot.
    */
   onStart: (pointer: Phaser.Input.Pointer) => boolean

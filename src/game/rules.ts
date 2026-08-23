@@ -1,5 +1,5 @@
 /**
- * The rule sets, as a flat object of flags (CHAPAEV-PLAN.md §3).
+ * The rule sets, as a flat object of flags (GAME-PLAN.md §3).
  *
  * **Pure TypeScript — this module must never import Phaser**, same rule as `board/layout.ts` and
  * the coming `src/sim/`: rules are data, and data that a plain `node` test can read is data the
@@ -34,7 +34,7 @@ export type FormationId = (typeof FORMATION_IDS)[number]
 export const RULES_IDS = ['classic', 'bumper', 'blitz', 'pits'] as const
 export type RulesId = (typeof RULES_IDS)[number]
 
-export interface ChapaevRules {
+export interface RuleSet {
   id: RulesId
   /** Discs per side. Eight is the board-game original. */
   piecesPerSide: number
@@ -47,7 +47,7 @@ export interface ChapaevRules {
    * the opponent rather than one: a disc, and the turn. The side that opened kept opening, the
    * material lead compounded on a board it never handed back, and the compound grew with every
    * knockout. Strict alternation is the fix, and `npm run verify:balance` is the measurement — see
-   * `CHAPAEV-PLAN.md` §3.
+   * `GAME-PLAN.md` §3.
    *
    * The reward for a good shot did not disappear, it moved: §5's combo multiplier already pays two
    * discs in one shot 400 rather than 200, which rewards the same skill without also handing over
@@ -100,7 +100,7 @@ export interface ChapaevRules {
  * `extraShotOnKnockout` is stated explicitly rather than left to a default for the reason its own note
  * gives: `false` here is a measured balance decision, not an inherited accident.
  */
-export const CLASSIC_RULES: ChapaevRules = {
+export const CLASSIC_RULES: RuleSet = {
   id: 'classic',
   piecesPerSide: 8,
   formation: 'infantry',
@@ -132,7 +132,7 @@ export const CLASSIC_RULES: ChapaevRules = {
  * sink is not a harder game, it is a game with no end, and anything that turns the pits off in this
  * set brings that straight back.
  */
-export const BUMPER_RULES: ChapaevRules = { ...CLASSIC_RULES, id: 'bumper', bumperRim: true, pits: true }
+export const BUMPER_RULES: RuleSet = { ...CLASSIC_RULES, id: 'bumper', bumperRim: true, pits: true }
 
 /**
  * **Blitz: five seconds a shot** (§5). Good for the platform's tempo, bad for a first-timer — mode
@@ -143,7 +143,7 @@ export const BUMPER_RULES: ChapaevRules = { ...CLASSIC_RULES, id: 'bumper', bump
  * rule. Renaming it cost nothing — a rule-set id only ever appears in a save, where `isRulesId`
  * already rejects one this build does not have and the field falls back to the default.
  */
-export const BLITZ_RULES: ChapaevRules = { ...CLASSIC_RULES, id: 'blitz', shotClockMs: 5000 }
+export const BLITZ_RULES: RuleSet = { ...CLASSIC_RULES, id: 'blitz', shotClockMs: 5000 }
 
 /**
  * §5's board modifier, as its own mode — and the surviving one of the two the plan asked for; see
@@ -152,9 +152,9 @@ export const BLITZ_RULES: ChapaevRules = { ...CLASSIC_RULES, id: 'blitz', shotCl
  * Its own mode rather than a flag mixed into another set, because the plan's instruction — "only in
  * separate modes, never in the classic" — is about being able to tell what a modifier did.
  */
-export const PIT_RULES: ChapaevRules = { ...CLASSIC_RULES, id: 'pits', pits: true }
+export const PIT_RULES: RuleSet = { ...CLASSIC_RULES, id: 'pits', pits: true }
 
-const RULE_SETS: Record<RulesId, ChapaevRules> = {
+const RULE_SETS: Record<RulesId, RuleSet> = {
   classic: CLASSIC_RULES,
   bumper: BUMPER_RULES,
   blitz: BLITZ_RULES,
@@ -169,9 +169,9 @@ export function isRulesId(value: string): value is RulesId {
   return (RULES_IDS as readonly string[]).includes(value)
 }
 
-export function getRuleSet(id: RulesId): ChapaevRules {
+export function getRuleSet(id: RulesId): RuleSet {
   return RULE_SETS[id]
 }
 
 /** Every set, in menu order. */
-export const ALL_RULE_SETS: readonly ChapaevRules[] = RULES_IDS.map((id) => RULE_SETS[id])
+export const ALL_RULE_SETS: readonly RuleSet[] = RULES_IDS.map((id) => RULE_SETS[id])

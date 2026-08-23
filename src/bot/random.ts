@@ -2,7 +2,7 @@
  * The one place randomness is allowed to enter the game.
  *
  * `src/sim/` is forbidden from touching `Math.random` — its determinism is what the bot, the daily
- * puzzle's solvability proof and every `node`-run test are built on (CHAPAEV-PLAN.md §2). The bot
+ * puzzle's solvability proof and every `node`-run test are built on (GAME-PLAN.md §2). The bot
  * does need randomness, because §6 makes Gaussian noise on the chosen shot the ENTIRE difficulty
  * parameter. So it takes a generator as an argument rather than reaching for a global one, and a
  * seeded generator makes a whole tournament replayable.

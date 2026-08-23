@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is, and what it is not yet
 
-**Chapaev / Flick Checkers** for YouTube Playables: eight discs a side on a square board, seen from
+**Flick Checkers** for YouTube Playables — a flick game after the Soviet board game «Чапаев», which
+is how `GAME-PLAN.md` still refers to the ancestor and is not a name the code or the player uses
+(see "One name, and it is Flick Checkers"): eight discs a side on a square board, seen from
 straight above, flicked with a slingshot drag until one side has nothing left on the board. The
-design document is `CHAPAEV-PLAN.md` and it is the authority on every question of scope — read it
+design document is `GAME-PLAN.md` and it is the authority on every question of scope — read it
 before adding anything, and read §10's chunk table before deciding where a change belongs.
 
 It is **not** a fresh project. It is the `Phaser_Core` template with roughly half of a finished
@@ -15,11 +17,14 @@ wrapper, the save/shop/economy layers, the UI kit, the board geometry, the asset
 the plan is the inventory of what came across, what was left behind (`rules/`, `bot/`, `session.ts`,
 the isometric projection) and what gets rewritten.
 
-**Every chunk of `CHAPAEV-PLAN.md` §10 is built.** S1 (the port), S2 (the solver), S3 (the disc
+**Every chunk of `GAME-PLAN.md` §10 is built.** S1 (the port), S2 (the solver), S3 (the disc
 layer), S5 (aiming), S6 (the round), S7 (the bot), S8 (the branches of arms), S9 (the match, saved
 and resumable), S10 (score, combos, energy-scaled sound), S11 (the daily puzzle with its
 build-time solvability proof), S12 (board modifiers), S12b (branch art) and S13 (economy, shop,
-metadata) — everything below describes real, working code.
+metadata) — everything below describes real, working code. **A tutorial, a rules page and a guided
+tour were added on top of the plan** — §10 names none of them, and the game shipped with no
+explanation of itself at all; see "The Tutorial" and "The Guided Tour", which teach three different
+kinds of thing and are documented separately for that reason.
 
 **Two things the plan asks for that are NOT done, and cannot be done from here:**
 
@@ -102,8 +107,14 @@ metadata) — everything below describes real, working code.
   painting their plate as `add.rectangle(0, 0, 4000, 4000).setOrigin(0.5)`, a magic square centred
   on the world origin that covers ±2000 and stops. It is checked at 2400x1200 and 1200x2200, and
   again after a live RESIZE, which is when this class of bug appears at all. **And nothing drawn may
-  cross anything else or leave the viewport**, checked at four mobile shapes across the menu, the
-  settings, the modes list, the rival question, the gallery, the board and the shop. Note what it
+  cross anything else or leave the viewport**, checked at five mobile shapes across the menu, the
+  settings, the modes list, the rival question, the gallery, the board, the tutorial, the rules page
+  and the shop. **375x664 — the SHORT portrait phone — is the fifth, and it was added after a bug it
+  would not have caught**: every other portrait shape here is about 2.2:1, and at 1.77:1 the square
+  board leaves a 152px band instead of 235. The board case therefore also asserts a real CLEARANCE
+  (6px) between the two priced buttons and the bottom edge, because "inside the viewport" was not
+  enough — they overhung by 0.9px, under this file's own 1px tolerance, while the guided tour's ring
+  around one of them was visibly cut in half. Note what it
   deliberately does NOT compare: **hit areas**. `ensureMinHitArea` pads every tap target to 44px on
   purpose, so those boxes overlap their neighbours by design — the first version of this file
   reported 48 findings and every one of them was correct behaviour.
@@ -115,9 +126,26 @@ metadata) — everything below describes real, working code.
   board and leaves the other three passing, which is the failure signature to expect from anything
   added here. See `tests/platform/harness.ts`; the harness is lifted from `../Checkers`, which
   `TODO.md` item 4 had been recommending for months.
+
+  **`tests/platform/tutorial.test.ts` is the wiring half of the tutorial**, and it covers what the
+  node suite structurally cannot: whether the menu offers it, whether a solved lesson advances,
+  whether the last one writes the save, and whether the rules page can be reached from the gear over
+  a live match and come back to the same board. One of its cases fires a REAL drag through
+  `bindDrag` -> `computeAim` -> the solver -> `settle`; the rest reach into the scene on purpose, so
+  that every assertion in the file does not depend on the physics staying exactly as tuned.
+
+  **`tests/platform/coach.test.ts` is the same job for the guided tour**, and the case it exists for
+  is geometric: the explanation card must never be drawn over the control it is explaining, which is
+  wrong only in landscape and only on some steps. It walks every step at three viewports, counting
+  how many actually had a spotlight so the overlap check cannot pass on a tour that rings nothing.
+  It is also the ONLY file here that seeds a save with no tour chapters seen — see "The Guided Tour".
 - `npm run test:gameplay` — `node --test` over `tests/gameplay/*.test.ts`: the turn matrix of §3 (a
-  scenario per flag of `ChapaevRules`), and §4's five branches including the stack threshold. See
-  "Round Rules" and "Branches of Arms".
+  scenario per flag of `RuleSet`), §4's five branches including the stack threshold, the guided
+  tour's chapter bookkeeping (`tour.test.ts` — what a save remembers and what `migrate` does with a
+  corrupt list), and **every tutorial lesson played through the real solver** — the one defect a tutorial cannot ship
+  with is a lesson whose goal is unreachable, and it is invisible to `tsc`, to the browser suite
+  (which fires no shots) and to reading the file. See "Round Rules", "Branches of Arms" and
+  "The Tutorial".
 - `npm run verify:bot` — S7's acceptance criteria: 100 real rounds of Hard versus Easy, plus the
   8ms frame-budget measurement. **Not in `npm test`** — it is a minute or two of solid computation,
   and a suite nobody runs because it is slow protects nothing. Run it after touching the bot, the
@@ -131,12 +159,12 @@ metadata) — everything below describes real, working code.
   the side that shoots first wins. **Every seed is played twice with the starter swapped** — without
   that it measures the seed rather than the first move. Also **not in `npm test`** (minutes per
   configuration). Run it after touching the turn rules, the formations or the bot. See "Round Rules"
-  and `CHAPAEV-PLAN.md` §3 for what the numbers are actually for.
+  and `GAME-PLAN.md` §3 for what the numbers are actually for.
 - `npm run verify:branches` — §4's question, measured: do the five branches of arms actually differ?
   Three travel figures on a deliberately oversized 24-cell board (so the edge never truncates the
   number), then real self-play per branch for the two guards — Hard must still beat Easy, and the
   first-move skew must not move. `--travel-only` is the instant half. Also **not in `npm test`**.
-  See "Branches of Arms" and `CHAPAEV-PLAN.md` §4, which holds the thresholds and what the first
+  See "Branches of Arms" and `GAME-PLAN.md` §4, which holds the thresholds and what the first
   run of this found.
 - `npm run daily` — regenerates the committed puzzle catalogue (`public/assets/daily/puzzles.json`).
   Takes about five minutes for 60 days; the output is committed and a fresh clone never needs it.
@@ -243,7 +271,8 @@ Phaser 4 game client bundled with Vite. `tsconfig.json` uses `noEmit: true` — 
     also make the economy farmable by beating yourself. The mode is stored on the saved match — a
     resumed hot-seat match must not grow a bot — and a record written before the field existed reads
     as solo, which `tests/gameplay/save.test.ts` pins down. **The board does not flip for player
-    two**: real Chapaev is one board with two people at opposite sides of it, and §2 chose the
+    two**: the board game this one is after is one board with two people at opposite sides of it,
+    and §2 chose the
     top-down projection precisely so a direction reads the same from anywhere.
   - **The landscape side panel** — `board/layout.ts`'s `computeSidePanel`, `ui/gamePanel.ts` and
     `ui/playerBlock.ts`, lifted from `../Checkers`' own `PROMPT-GAME-SIDEPANEL.md`. The thing worth
@@ -252,7 +281,7 @@ Phaser 4 game client bundled with Vite. `tsconfig.json` uses `noEmit: true` — 
     and the margins come out equal. The board never gives up a pixel — it is bound by the viewport's
     shorter side either way — and when the leftover space is too narrow the panel is DROPPED rather
     than squeezed, falling back to `computeHudBands`' two strips (which portrait always uses).
-    - **Four zones, not five**: the reference's move list is gone, because a Chapaev round is a
+    - **Four zones, not five**: the reference's move list is gone, because a round here is a
       sequence of flicks rather than notated moves. What takes the middle is the opponent's LINE.
     - **Whose turn it is is the lit BLOCK**, not a capsule somewhere else — and that is the second
       time a turn signal has moved in this game for that reason; see the perimeter "turn light" that
@@ -302,6 +331,11 @@ Phaser 4 game client bundled with Vite. `tsconfig.json` uses `noEmit: true` — 
     because almost nothing is shared: no opponent, no turn, no round, no match and no bot. What IS
     shared — the board, the disc layer, the aim gesture, the solver — is shared as modules, which is
     the whole reason those were written as modules.
+  - `Tutorial` → six lessons on a live board, and `HowToPlay` → the reference everything else lives
+    in. See "The Tutorial" for the split and for why it is two screens rather than one.
+  - `Coach` → the guided tour: an overlay that dims a screen, rings one control at a time and taps it
+    with a pointing hand. Two chapters, one over the menu and one over a board, and it knows about
+    neither — the opener publishes the rectangles. See "The Guided Tour".
 
   New scenes must be added to the `scene: [...]` array in `src/config.ts` to be registered with
   Phaser, and a new *overlay* scene must also join `platform/lifecycle.ts`'s `OVERLAY_SCENES`.
@@ -312,7 +346,7 @@ Phaser 4 game client bundled with Vite. `tsconfig.json` uses `noEmit: true` — 
   "Skins"); `aimView.ts` draws the
   slingshot. See "Board Geometry", "Rendering the Discs" and "Aiming" below.
 - `src/game/` — the game's own rules and economy as plain data, all Phaser-free: `rules.ts` (the
-  `ChapaevRules` flag object of §3), `formations.ts` (where the discs start), `economy.ts` (catalog,
+  `RuleSet` flag object of §3), `formations.ts` (where the discs start), `economy.ts` (catalog,
   payouts, which skin is in force), `wallet.ts` and `persistence.ts` (the two thin layers that feed
   those pure functions the live save and write the result back). See "Game Layer" below.
 - `src/sim/` — the deterministic fixed-step disc solver (`types.ts`, `step.ts`, `shoot.ts`,
@@ -428,12 +462,12 @@ Phaser 4 game client bundled with Vite. `tsconfig.json` uses `noEmit: true` — 
 - `public/assets/` — static game assets, served at `/assets/...` and referenced via
   `this.load.setPath('assets')` in `Preloader`. **The atlas and the sound set are generated, not
   painted** (`npm run assets` / `npm run audio`) and both are committed. The atlas is this game's,
-  not the draughts one it started as: fourteen frames (`icon-coin`, `icon-sound-on`/`-low`/`-off`,
-  `icon-home`/`-shop`/`-modes`/`-gear`, `icon-retake`/`-power`, `rim-strip`, `rim-corner`,
-  `particle-spark`, `particle-shard`) totalling 18.6 KB — the nine icons joined it when a phone drew
+  not the draughts one it started as: fifteen frames (`icon-coin`, `icon-sound-on`/`-low`/`-off`,
+  `icon-home`/`-shop`/`-modes`/`-gear`, `icon-retake`/`-power`, `icon-hand`, `rim-strip`,
+  `rim-corner`, `particle-spark`, `particle-shard`) totalling 20.6 KB — the nine icons joined it when a phone drew
   the UI's emoji as tofu, see "UI Kit" — — the discs themselves are drawn at runtime
   by `board/discTextures.ts` and were never atlas frames. **The SOUND set still carries draughts cue
-  names** (`promote`, `capture`, `move`), used for their Chapaev roles with the mapping written down
+  names** (`promote`, `capture`, `move`), used for their roles in THIS game with the mapping written down
   in `src/assets.ts`; renaming them is a `make-audio.mjs` pass that needs `ffmpeg` on PATH, which is
   the only reason it has not happened.
 - `index.html` — loads the Playables SDK via a parser-blocking `<script src="https://www.youtube.com/game_api/v1">` tag, before the `type="module"` entry script, per certification requirements. That SDK `<script>` lives in `<head>`, not `<body>` — see "Build Guards & Asset Policy" for why the source file's body placement doesn't survive `vite build`. This file's `<script type="module" src="/src/main.ts">` is what dev mode actually serves; the production build rewrites it entirely (see `vite.config.ts`'s `inlineModuleLoader` plugin, also in "Build Guards & Asset Policy").
@@ -676,7 +710,7 @@ instead of letterboxing the whole page to a fixed aspect ratio.
 lets `npm run verify:fit` cover it under plain `node`. Anything positional that can be expressed
 without a `Phaser.Scene` belongs here rather than in a scene.
 
-- **The projection is orthogonal, and that is a decision, not a default.** `CHAPAEV-PLAN.md` §2
+- **The projection is orthogonal, and that is a decision, not a default.** `GAME-PLAN.md` §2
   cancelled the isometry inherited from the draughts project, and the reasons are all about this
   game specifically: in a diamond the mapping from a screen drag to a board direction is non-linear
   across the field, and here that direction IS the player's entire skill; distance-to-edge — the
@@ -715,7 +749,7 @@ board's exact edge and has nothing to do with those pixels.
 
 **The board's palette is inverted from a draughts board, deliberately.** In draughts the board is
 the playfield — you count cells, a piece stands in the middle of one, and high square contrast
-helps. In Chapaev, after the first shot no disc ever stands on a cell again: the grid stops being a
+helps. Here, after the first shot no disc ever stands on a cell again: the grid stops being a
 set of arrival squares and becomes a **ruler**, which only has to say how far. So the two tones are
 dark and close together (`#2f7186` / `#20596d`, replacing the draughts pair `#7ed2de` / `#286a85`,
 whose own two tones differed in luminance by more than either differed from a disc). Dark also gives
@@ -754,7 +788,7 @@ that means anything else must not be drawn on it.
 
 ## Simulation
 
-`src/sim/` is the disc solver — the project's single largest technical risk (`CHAPAEV-PLAN.md` §10),
+`src/sim/` is the disc solver — the project's single largest technical risk (`GAME-PLAN.md` §10),
 and the one module where a shortcut is most expensive. **Nothing here may import Phaser.** That is
 what lets `npm run verify:sim` cover it under plain `node`, and it is also what makes the bot (§6),
 the daily puzzle's solvability proof (§7), replays and `node`-run tests fall out for free instead of
@@ -1156,8 +1190,8 @@ and can be played against, which is what makes a rematch a different game rather
 at a different difficulty.
 
 **The cast is not an army, and six of the rungs exist to say so.** It was twelve military men, which
-is a narrower world than a game about a table played in taverns has any reason to depict — Chapaev
-is a bar game, and the people who are good at it are whoever plays it most. So the ladder now runs
+is a narrower world than a game about a table played in taverns has any reason to depict — this is
+a bar game, and the people who are good at it are whoever plays it most. So the ladder now runs
 through a fishwife, a watchmaker, a schoolteacher, a ferryman, a partisan and a chess master
 alongside the soldiers, and three rungs that were always written genderless in the first person —
 the cook, the medic and the sniper — are women, which cost one pronoun in one English description
@@ -1497,8 +1531,8 @@ Three modules, split the way the audio layer already is — policy, view, output
 
 - **`game/speech.ts`** decides WHEN and WHICH. At most one line per three shots, counted in SHOTS
   rather than seconds so the limit holds identically through the bot's fifth-of-a-second search and
-  through a player who thinks for a minute. Three rather than a grid game's five, because a Chapaev
-  round is about ten shots: at five a character would get two lines a round and half of them would
+  through a player who thinks for a minute. Three rather than a grid game's five, because a round
+  here is about ten shots: at five a character would get two lines a round and half of them would
   be the hello. **A disc leaving the board gets a SHORTER cooldown, not an exemption**
   (`LOUD_COOLDOWN_SHOTS`, two shots). It used to bypass the limit outright, and in a branch where
   discs come off in twos that is a character commenting on literally every shot — the
@@ -1557,7 +1591,7 @@ can be several things at once, and its own blunder outranks its own combo, becau
 double while its own disc is still falling reads as not having noticed.
 
 **`onPlayerBlunder` is the eleventh trigger and it was missing entirely**: you posting one of your
-OWN discs off the board is the funniest thing that happens in Chapaev, and the character used to
+OWN discs off the board is the funniest thing that happens in this game, and the character used to
 watch it in total silence. It is the mirror of `onOwnBlunder` and it is `triumph`, not `calm` — the
 whole point is that it gloats. Tested after `onPlayerKnockout` for the same priority reason the
 branch above it is ordered as it is: a shot that took one of ITS discs and cost you one of yours is,
@@ -1626,7 +1660,7 @@ generated in its own pass, and it should be deleted once nobody is waiting on a 
 
 `src/bot/` picks the opponent's shots. **No Phaser, and no minimax** — a carrom board has no move
 list to branch over and nothing about an aim predicts its result, so the bot brute-forces candidate
-shots through the same solver the player's shots go through (CHAPAEV-PLAN.md §6). That is only
+shots through the same solver the player's shots go through (GAME-PLAN.md §6). That is only
 affordable because the solver is a pure function over a cloneable state.
 
 - **`levels.ts`** — the three difficulties, as three pairs of numbers. **Difficulty is not different
@@ -1752,6 +1786,33 @@ it never drew.
   every other opener wants — strands the player on a screen that accepts no shot and has no result
   panel left to offer an exit. Same dead end the daily had before it got the shared top bar.
 
+## The Board's HUD
+
+**The portrait HUD block is FITTED to its band, not centred in it, and a short phone is why.**
+`uiScale` reads the WIDTH — the right question for text and the wrong one for a stack of rows whose
+room is whatever a square board left over vertically. Measured: the trailing band is 235px at
+390x844 and 249 at 414x896, against a block (status capsule + reserved speech row + the two priced
+buttons) that wants about 153. At **375x664** the band is 152.5 and at 360x640 it is 148 — so a
+block merely centred in the band hung **0.9px** off the bottom of the screen with the two priced
+buttons on it, under `layout.test.ts`'s own 1px tolerance, and the guided tour's ring around one of
+those buttons — which stands 8px off whatever it rings — was cut in half. That is how it was
+reported: a screenshot of the tour, not of the HUD.
+
+Three things about the fix are worth keeping:
+
+- **The scale is found by MEASURING each pass, not by one division.** A `Text`'s height quantises to
+  whole lines, so the block does not shrink smoothly with the scale — the same finding as the side
+  panel's button pairs, which came out a pixel over their own panel when the factor was computed in
+  one shot. `measureTrailingStack` sizes the pieces and reports what they came to; `layoutHud` calls
+  it up to three times.
+- **`MIN_HUD_SHRINK` is a floor, and it means something.** 0.78 of `uiScale` is what 320x568 needs;
+  below that the price on a consumable stops being readable, and a HUD nobody can read is worse than
+  one that overhangs. A viewport that needs less than the floor is a band something has to LEAVE,
+  not shrink into.
+- **The block is centred where it fits and pushed off the bottom edge where it does not.** What is at
+  the bottom of it is two tap targets; what is at the top is empty background. A tall phone is
+  untouched — 390x844 lays out to the same pixel as before.
+
 ## Score, Combos and Feel
 
 `src/game/scoring.ts` is §5, and §5's framing is the important part: **none of it affects who wins.**
@@ -1831,6 +1892,198 @@ solvable by running the same search the bot uses.
 - Streaks live in `daily/streak.ts` and take the date as an argument rather than reading a clock — a
   streak bug that only appears at midnight is a bug nobody ever reproduces. A lapsed streak is
   zeroed on READ, because the game is opened far more often than it is played.
+
+## The Tutorial
+
+`src/game/tutorial.ts` is the content — six lessons and twelve reference chapters, Phaser-free —
+`scenes/Tutorial.ts` plays the lessons on a live board, and `scenes/HowToPlay.ts` renders the
+reference. It exists because the game had no explanation of itself at all: a player who did not
+already know the board game met a board, two ranks of discs and a HUD with two priced buttons on it, and
+the question that prompted this was literally "what does that one do".
+
+**The split is by KIND, and it is the decision worth keeping.** A board can teach the gesture, the
+reach, the line stopping at the first contact, the cost of losing your own disc and the combo,
+because all five are things a player DOES. It cannot teach the shop, the ladder, the branches of
+arms or the payouts — there is no way to teach a coin balance by making somebody play it, and a
+"lesson" that is a wall of text over a board is a worse page than a page. So the lessons do and the
+reference reads, and neither pretends to be the other.
+
+### The lessons
+
+Six, one shot each except the last. **A lesson that lets you keep firing until something works
+teaches persistence, not aim**; every one but `clear` resolves on ONE shot, so it is a question with
+an answer rather than a sandbox. A failure is not a dead end — the board puts itself back after
+1.1 seconds and the hint states **the rule the failure just demonstrated**, which is where lesson
+three does its actual teaching.
+
+| # | id | teaches |
+|---|---|---|
+| 1 | `flick` | the gesture. The shortest shot in the file — under half power, so a tentative first pull works |
+| 2 | `reach` | that the pull is a distance. Across the diagonal, ~0.83 of the drag |
+| 3 | `keep` | that your own discs leave the same way. The enemy is OFF the shooter's axis, so the lazy full-power pull straight back misses and runs off the far edge |
+| 4 | `around` | that the aim line stops at the first contact. Going round and banking off are both accepted |
+| 5 | `combo` | that two in one shot is worth four times one |
+| 6 | `clear` | what a round is. Unlimited shots; resets only when the player runs out of discs |
+
+**`tests/gameplay/tutorial.test.ts` plays every lesson through the real solver** over a 72x10 fan of
+angles and powers and asserts each is winnable — and, deliberately, that fewer than half of all
+shots win it, because a lesson anything solves teaches nothing. It also asserts directly that lesson
+three's lazy shot really does cost the shooter its disc: a lesson whose punchline no longer fires is
+a lesson that has quietly become a different lesson. None of that is expressible anywhere else in
+this repository.
+
+**Nothing traps the player.** One button, always live: `Skip` before the goal is met and `Next`
+after it, one handler for both, because both mean "I am done with this lesson". Reaching the end —
+solved or skipped — writes `SaveState.tutorialDone`; **backing out through the top bar does not**,
+because that is leaving rather than finishing.
+
+**The aim camera is here too**, and for the reason `Daily`'s own note gives: it belongs to the
+GESTURE, not to a match. Without it a disc on the rim reaches full power pulling one way and about a
+quarter of it pulling the other, which on the screen whose entire job is teaching that drag is the
+whole lesson broken.
+
+**The lesson counter is in the coach block, not in the top bar's round slot.** Measured at 844x390,
+"1 / 6" in that slot is drawn over the BOARD, a few pixels from a disc, and reads as a label on it.
+`Game` never shows this because its landscape layout hands the badges to the side panel; the
+tutorial has no panel. Same lesson as the perimeter turn light that was removed for being read as
+scenery — **a signal drawn on the field is read as being about the field.**
+
+### The reference
+
+Twelve chapters, a heading and a few paragraphs each, in a scrolling list. **Two of them hold almost
+no copy of their own**: the four rule sets and the five branches of arms are already written down for
+the screens that pick them (`ruleName*`/`ruleWin*`/`ruleAbout*`, `formation*`), so `HelpChapter.source`
+names a list and the scene reads `ALL_RULE_SETS` and `FORMATION_ORDER` directly. A help screen that
+restated them would be a second copy free to drift — the exact failure `render-skin-sheet.mjs` was
+caught in when its board disagreed with the product's.
+
+**It is a full page, not an overlay, and that is what lets `Settings` reach it.** Settings is an
+overlay over an arbitrary opener and cannot host a second overlay without two pause owners
+arbitrating over one scene. As a nav destination it is reached with `navTo` instead, which the
+settings panel drives **on its opener's behalf** — `navTo` records where "back" lands by reading the
+scene it is given, so handing it the overlay would put `Settings` on the stack and send the back
+button to a panel that no longer exists. It carries `{ resume: true }` when that opener is `Game`,
+exactly as the side panel's shop button does, so a player who asks "what does this button do"
+mid-match comes back to the same board rather than to a fresh match started silently over the saved
+one.
+
+### The three doors
+
+- **The gear, on every screen including mid-match** → the reference. That is where "what does that
+  button do" is actually asked, and the gear is the only control every screen carries.
+- **The menu**, while `tutorialDone` is false AND there is nothing to continue → the lessons. Both
+  halves of that condition are load-bearing: it is the first-run nudge, and it keeps the menu's
+  column at three buttons, which matters because `MainMenu.layout` is already dropping the wordmark
+  to fit short landscape screens.
+- **The reference itself** offers the lessons — except while there is a match to come back to, since
+  starting `Tutorial` would stop `Game` and, while the match survives (it is persisted after every
+  settled shot), the nav stack's return entry would not. It also offers the **guided tour**, and that
+  button IS unconditional — see "The Guided Tour" for why it can be, and why it leaves rather than
+  opening anything itself.
+
+**`Settings`' panel grew a row and a rule with it.** `PANEL_HEIGHT` is 404 and the panel is now
+scaled on BOTH axes: `uiScale` reads the WIDTH, which is the right question for text on a phone and
+the wrong one for a panel whose height is a fixed stack of rows. At 740x360 `uiScale` returns 1, the
+404-unit panel is centred on 360px of screen, and its title lands a pixel above the top of the
+viewport — `tests/platform/layout.test.ts` caught exactly that the moment the help button made the
+stack taller. Redo the addition in `Settings.layout`'s comment before adding a fourth row.
+
+**`SaveState.tutorialDone` is additive and versionless**, like `SavedMatch.twoPlayer` and
+`bestCombo`: a save written before it existed lacks it and normalises to `false`, which is the truth
+about it. A returning player is offered the tutorial once more, which is the right failure — the
+alternative is inventing a history nobody recorded.
+
+## The Guided Tour
+
+`scenes/Coach.ts` dims a screen, cuts a hole around one control, taps inside the hole with a pointing
+hand and says what that control does. `game/tour.ts` holds which chapters exist and which this save
+has been shown; `SaveState.tour` is the list. **Lifted from `../Checkers`' own `Coach`**, which is
+where the design and most of the geometry come from — the third thing taken from that project after
+the browser harness and the side panel, and the one that transferred with the fewest changes.
+
+**It is a third teaching surface, not a replacement for either existing one**, and the split is by
+what each can teach. The lessons (`scenes/Tutorial.ts`) put the player on a live board and make them
+flick a disc, which is how the gesture, the reach and the cost of losing your own disc are taught and
+the only way they can be. The reference (`scenes/HowToPlay.ts`) is for what a board cannot
+demonstrate. Neither answers **"what is that button"** about a control the player is looking at right
+now — the question that prompted the tutorial in the first place — because a lesson whose goal is
+"press the shop" would be a lesson about pressing, and a paragraph about the shop is read on a screen
+the shop is not on.
+
+- **Two chapters, met where each is true.** `menu` opens on the first launch, `match` the first time
+  a board does. One tour cannot work: the two things a new player needs are on two screens, so it
+  would either sit them through the board half before they have a board, or explain a board from the
+  menu. The save records the two separately, which is also what lets a third be added later without
+  replaying the first two.
+- **The hand DEMONSTRATES; the player never has to hit the target.** The obvious design is a real
+  hole — let the tap through, watch for the expected action, advance on it — and it is the design
+  that strands people: it needs an answer for every other tap, for the player who taps nothing, and
+  for a control that is not where the tour thought it was, and its failure mode is a game that cannot
+  be used at all. Here the scene underneath is PAUSED, the only two answers are Next and Skip, and
+  the finger shows rather than demands.
+- **The coach knows nothing about menus or boards.** The opener publishes `tourSteps(): CoachStep[]`
+  — a screen RECTANGLE and two string keys per step — so one scene tours both, and a control that
+  moved between orientations simply moves the hole. The rectangles are asked for at the moment the
+  tour opens, never stored. `MainMenu` reads its own buttons plus `TopBar.parts()` and
+  `NavBar.tabBounds(key)`, both added for this rather than letting a caller index into an `objects`
+  array; `Game` converts the board out of world space itself, because its main camera is zoomed onto
+  board space and only the camera knows the current fit.
+- **A step whose target has no size is DROPPED**, which is why neither host needs a branch per
+  layout. `Game` publishes the status capsule AND the panel's opponent block for the same "whose shot
+  it is" step: the capsule is hidden in the panelled layout and the block in the strip one, so
+  exactly one survives. Note the shape of that — **a zero rectangle, never `null`**, because `null` is
+  a legitimate step ABOUT THE WHOLE SCREEN and would have added a second copy rather than removing
+  one. The block's box is also gated on the panel EXISTING rather than on the block being visible: a
+  `PlayerBlock` keeps whatever the last panelled layout put in its box, so a phone rotated out of
+  landscape would otherwise report both.
+- **A tour with no steps at all is still FILED AS SHOWN.** Each host re-checks `shouldRunTour` in its
+  own `create()` and this scene resumes the opener as it leaves, so an unfiled empty tour reopens
+  every time that screen is entered.
+- **It does not use `ui/overlay.ts`.** That helper animates an entrance by zooming `cameras.main`,
+  which is exactly wrong here: the hole has to stay registered with a control drawn by a scene that
+  is not zooming. The two colours are shared (`SCRIM_COLOR`/`SCRIM_ALPHA` are exported for it) but the
+  scrim is four `fillRect` bands around the hole rather than one rectangle with a hole in it —
+  `Graphics` has no even-odd fill, and `destination-out` would need a render texture.
+- **The card is placed in one of FOUR bands, and never on the spotlight.** Below or above, the
+  roomier first, then beside. Two bands is right only on a phone held upright: in landscape a ringed
+  control across the middle leaves no vertical band tall enough, so "the bigger band, clamped" draws
+  the card over the ring it is explaining. When nothing fits at all the card gets NARROWER (floored at
+  `CARD_MIN_WIDTH`) rather than moving onto the ring. `tests/platform/coach.test.ts` walks every step
+  at three viewports and measures the two rectangles against each other; it is negative-controlled by
+  counting how many steps had a spotlight at all, since the overlap check passes trivially on a tour
+  that rings nothing.
+- **The chapter is filed when the tour ENDS, by finishing or by skipping** — never when it opens. A
+  player who closes the game halfway has not been shown the screen. Skip files it for the opposite
+  reason: a tour somebody declined must not come back every launch.
+- **"Show me around" is on the RULES PAGE, not in `Settings`.** Two reasons, and only the first is
+  the one the sibling project gives: Settings is an overlay over a paused opener, so launching a
+  second overlay from it would stack two dialogs over one frozen scene. The second is local — that
+  panel is a fixed stack of rows at `PANEL_HEIGHT` 404, already scaled on both axes to survive a
+  landscape phone, and a fourth row is paid for on the screen least able to afford it. The button
+  forgets the chapters and LEAVES (`navBack`), and whichever host it lands on opens the tour in its
+  own `create()`. That is what makes it unconditional: `navBack` restores `Game` with its
+  `{ resume: true }` return data, so asking mid-match brings the tour to the board rather than to a
+  fresh match.
+- **The tour's opening card takes `gameTitle`**, not a title key of its own — so the card and the
+  wordmark behind it cannot drift apart, or disagree in Spanish. It held a second copy of the name
+  for an afternoon, and that copy said the wrong one: see "One name, and it is Flick Checkers".
+- **The ring is CLAMPED to the viewport.** A control can legitimately sit against an edge, and on a
+  375x664 phone the two priced buttons did: the ring's 8px standoff went off the bottom and the
+  spotlight read as a broken box rather than as a ring around a button. Clamping loses a line of ring
+  on that side and keeps the shape closed. The underlying squeeze was a HUD bug and is fixed in its
+  own right — see "The Board's HUD" — but a tour that rings whatever it is given must survive being
+  given something at the edge.
+- **The hand is an atlas frame** (`icon-hand`, 96px), white with the atlas's own dark contour so the
+  game can tint it gold — a flat white one would be gold on gold against a spotlit button's lit face.
+  A pointing index finger rather than a mouse cursor: this is played with a thumb on a phone. Its
+  FINGERTIP is at (0.43, 0.02) of the frame, which is the sprite's origin — the tip has to land on the
+  control, not the sprite's middle. Drawing it taught one thing worth keeping: `make-atlas.mjs`'s own
+  `roundedRect` opens its own path, so three calls to it leave only the LAST shape in the buffer. The
+  first render was a lone thumb with two creases floating beside it.
+- **Every fixture in `tests/platform/` seeds both chapters as seen** (`DEFAULT_SAVE`), or the tour
+  would open over all of them; `coach.test.ts` is the one file that seeds an empty list. Two harness
+  changes came with it, both because `scene.isActive()` is FALSE for a paused scene: `open()` takes an
+  `expectScene`, and `startMatch()` accepts a `Game` that is paused underneath the coach.
 
 ## Skins
 
@@ -1980,7 +2233,7 @@ alike.** It was two slick bands across the middle at friction ×0.3, and as a mo
 it changed how far a shot carried without changing what a shot was FOR, so the round played out the
 same with one more variable the player could not aim with. `pits` survives because it changes *where
 it is safe to leave a disc*, which is a decision rather than a modifier of one. What went with it:
-`RULES_IDS`' `'ice'` and `ICE_RULES`, `ChapaevRules.iceZones`, `hazards.ts`'s `iceZones()`/
+`RULES_IDS`' `'ice'` and `ICE_RULES`, `RuleSet.iceZones`, `hazards.ts`'s `iceZones()`/
 `ICE_FRICTION`, `Hazards.ice`/`BoardHazards.ice`, the `ruleNameIce`/`ruleAboutIce` strings in both
 locales, the ice wash in `boardView.ts` and `modeIcon.ts`, and — the part worth naming — `SimConfig.ice`,
 `IceZone` and `step.ts`'s per-disc zone test inside `integrate()`. **The solver no longer varies
@@ -2017,7 +2270,7 @@ economy, all Phaser-free on purpose — the same testability argument as `board/
 
 - **`round.ts`** — the turn machine. See "Round Rules" above.
 - **`opponents.ts`** / **`speech.ts`** — the cast and when it talks. See "The Opponents".
-- **`rules.ts`** — `ChapaevRules`, a flat object of flags (§3), and the **four** sets built from it:
+- **`rules.ts`** — `RuleSet`, a flat object of flags (§3), and the **four** sets built from it:
   one core set (`classic`) plus three that are it with a single twist — `bumper`, `blitz`, `pits`.
   The shape is carried over from the draughts project's `rulesets.ts` because it earned it: every
   set runs the SAME code path reading different flags, so a variant is a row in a table rather than
@@ -2048,7 +2301,7 @@ economy, all Phaser-free on purpose — the same testability argument as `board/
   **`extraShotOnKnockout` is `false` in every shipped set** (§3): a knockout used to also buy the
   next turn, and `verify:balance` measured what that was worth — the side that shot first won 85% of
   rounds at Hard on runaway chains alone. Strict alternation took that to 2.3%. The flag stays in
-  `ChapaevRules` for the arcade mode that may want it, is restated as `false` explicitly rather than
+  `RuleSet` for the arcade mode that may want it, is restated as `false` explicitly rather than
   inherited, and `tests/gameplay/round.test.ts` exercises it turned ON so a flag nothing ships with
   cannot quietly rot.
 - **`economy.ts`** — the catalog, the payouts, and `equippedSkin()`. Pure functions over plain
@@ -2277,6 +2530,34 @@ the other.
   the decay right but still over-travels at a coarser tick rate; the fix is the exact integral of the
   decaying velocity over each step, not `position + velocity * delta`).
 
+## One name, and it is Flick Checkers
+
+The game is **Flick Checkers**, everywhere a person can read it and everywhere the code can say it.
+"Chapaev" is the name of the traditional game this one is descended from, and it now appears in this
+repository only where it means exactly that: inside `GAME-PLAN.md`'s Russian prose, where the
+ancestor is discussed as the ancestor. The two documents that carried it in their FILENAMES are
+`GAME-PLAN.md` (was `CHAPAEV-PLAN.md`, the design authority) and `PROMPT-UI.md` (was
+`PROMPT-UI-CHAPAEV.md`) — 76 citations across 55 files moved with them, which is the cost of
+leaving a name in a filename and the reason not to put one there again. The remaining hits anywhere
+are the sibling Remotion scripts' own filenames (`gen_chapaev_bots.py` and friends), which live in
+another project and are cited because that is what they are called on disk.
+
+- **No player-facing string has ever to be checked for this again**: every one goes through `t()`,
+  and both dictionaries say Flick Checkers / Damas de Pulso through the single `gameTitle` key. The
+  guided tour's opening card is the case that got it wrong — it carried its own `coachHelloTitle`
+  reading "Chapaev", which is what the game is to the people building it and not what it is called
+  to the person playing it. Anything that needs the game's name reads `gameTitle`; a second copy of
+  a name is a second thing to translate and a second thing to get wrong.
+- **`RuleSet` was `ChapaevRules`**, and the rename is the reason to state the rule at all. A type
+  name is not player-facing and was not a bug — but it is what makes the working name feel official
+  inside the codebase, and it read oddly beside `RulesId`/`getRuleSet`/`ALL_RULE_SETS`, which never
+  carried it. `GAME-PLAN.md`'s three mentions of the old type were updated with it: a design doc
+  naming an interface the code does not have is the same drift as a contact sheet disagreeing with
+  the product.
+- **Prose in comments says "this game" or "a round", not the old name.** Twenty of them did — "a
+  Chapaev round is about ten shots", "the Chapaev disaster" — and every one reads at least as well
+  without it, because the file it is in is already about this game and nothing else.
+
 ## Localization
 
 `src/i18n/strings.ts` is a plain lookup-table `t(key, params?)` layer, not a library — `{name}`
@@ -2371,11 +2652,16 @@ events:
   `SAVE_SCHEMA_VERSION`, and `DEFAULT_SAVE_STATE`. The ladder so far: **v1** `{ v, bestScore, coins,
   purchases, settings, rules, difficulty, skins, stats }`; **v2** adds `match` and `daily`; **v3**
   turns the two sound FLAGS into levels; **v4** replaces `difficulty` with `opponent` and adds
-  `defeated`. **The historic interfaces are kept rather than edited in place** — `SaveSettingsV1V2`
+  `defeated`. `tutorialDone` and `tour` then joined `v4` with NO bump — both additive, absent on
+  every older save, normalising to `false` and to an empty list, which is the truth about such a
+  save; same case as `bestCombo` and `skins.effects`, and see "The Tutorial" and "The Guided Tour".
+  `tour` is a `string[]` rather than a union of chapter ids ON PURPOSE, and `migrate.ts` keeps
+  whatever strings it finds: importing `game/tour.ts` here would drag the store into the import
+  graph of every test that touches a payload, and an id this build does not know gates nothing. **The historic interfaces are kept rather than edited in place** — `SaveSettingsV1V2`
   and `SaveDifficulty` both exist for no other purpose than letting an upgrade step NAME what it is
   reading; deleting one leaves that function taking `unknown` and checking types it can no longer
   say. **v1 and not a continuation of the draughts
-  project's v3** (`CHAPAEV-PLAN.md` §8): this is a different game with a different save directory on
+  project's v3** (`GAME-PLAN.md` §8): this is a different game with a different save directory on
   the platform, so no v3 payload can ever reach this build and pretending to migrate one would be
   ceremony. What did transfer is the machinery — the ladder, the per-field normalisation, `save.ts`'s
   guards — because the project's first schema bump needs all of it.

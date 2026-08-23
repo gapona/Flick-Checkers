@@ -32,6 +32,12 @@ import { getTheme, toCssColor } from './theme'
  */
 export interface PlayerBlock {
   readonly objects: Phaser.GameObjects.GameObject[]
+  /**
+   * The block's own plate, in screen px, valid after {@link PlayerBlock.layout} — and `{0,0,0,0}`
+   * before it, which is what tells the guided tour there is nothing here to ring on a layout that
+   * does not carry a panel at all.
+   */
+  readonly box: { x: number; y: number; width: number; height: number }
   /** Where the avatar goes — centre and side, in screen px, valid after {@link PlayerBlock.layout}. */
   readonly avatarBox: { x: number; y: number; size: number }
   /** What the block currently says, for the platform tests — which cannot read a `Text` inside a
@@ -44,7 +50,7 @@ export interface PlayerBlock {
   setSubline(text: string): void
   /** Temporarily replaces the sub-line. `null` puts the standing line back. */
   setStatus(text: string | null, tone?: 'normal' | 'alert'): void
-  /** Discs this side still has on the board — the number a Chapaev round is actually about. */
+  /** Discs this side still has on the board — the number a round is actually about. */
   setDiscs(count: number): void
   setActive(active: boolean): void
   /** The texture drawn beside the count. A disc of this side, in the equipped set. */
@@ -106,6 +112,7 @@ export function createPlayerBlock(scene: Phaser.Scene): PlayerBlock {
 
   return {
     objects: [highlight, name, sub, token, count],
+    box,
     avatarBox,
     get text() {
       return { name: name.text, sub: sub.text }

@@ -3,7 +3,7 @@ import * as Phaser from 'phaser'
 /**
  * A number that arrives by rising to itself.
  *
- * `PROMPT-UI-CHAPAEV.md`'s chunk 10 calls this "the cheapest trick that turns a result into an
+ * `PROMPT-UI.md`'s chunk 10 calls this "the cheapest trick that turns a result into an
  * event", and cheap is exactly right: the panel is otherwise a static list of facts, and a fact that
  * is simply *there* when the panel opens was never noticed arriving. Four hundred milliseconds is
  * long enough for the eye to catch the movement and short enough that nobody waits for it.

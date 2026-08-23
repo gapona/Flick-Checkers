@@ -14,7 +14,7 @@ import { DEFAULT_PIECE_SET, pieceSet, type PieceSetId } from '../game/skins'
  *
  * ## The two things this has to get right
  *
- * **Interpolation** (CHAPAEV-PLAN.md §2, trap 3). The solver runs at a fixed 240Hz and the display
+ * **Interpolation** (GAME-PLAN.md §2, trap 3). The solver runs at a fixed 240Hz and the display
  * does not. Drawing the raw solver position means that at 120Hz two consecutive frames can land on
  * the same step while the next covers two steps of travel — a fast disc shimmers. Every position
  * here therefore goes through `sim/step.ts`'s `renderX`/`renderY`, which blend between the disc's

@@ -2,7 +2,7 @@ import { DEFAULT_OPPONENT_ID } from '../game/opponents'
 import { DEFAULT_RULES_ID, RULES_IDS, type RulesId } from '../game/rules'
 
 /**
- * **Version 1, and not a continuation of the draughts project's v3** (CHAPAEV-PLAN.md §8). This is
+ * **Version 1, and not a continuation of the draughts project's v3** (GAME-PLAN.md §8). This is
  * a different game with a different save directory on the platform; there is no v3 payload in the
  * wild that could ever be handed to this build, so pretending to migrate one would be ceremony.
  * What DID transfer is the machinery around it — the ladder in `migrate.ts`, the per-field
@@ -63,7 +63,7 @@ export interface SaveSkins {
   effects?: string
 }
 
-/** No draws: a Chapaev round ends when one side has no discs left on the board, which cannot be
+/** No draws: a round ends when one side has no discs left on the board, which cannot be
  * mutual — unlike draughts, where a repetition or a blocked side is a real third outcome. */
 export interface RulesRecord {
   wins: number
@@ -247,6 +247,38 @@ export interface SaveStateV4 extends Omit<SaveStateV3, 'v' | 'difficulty'> {
    * and a record that could also be set by losing well would.
    */
   defeated: string[]
+  /**
+   * The tutorial has been finished at least once.
+   *
+   * **Optional, and deliberately NOT a schema bump** — same reasoning as `bestCombo` above and
+   * `skins.effects`: a save written before the field existed simply lacks it and normalises to
+   * `false`, which is exactly the truth about it. A bump is for a field whose MEANING changed.
+   *
+   * Its only reader is `MainMenu`, which offers the tutorial as a button until this is set. A
+   * returning player therefore sees the offer once more after this build lands, which is the right
+   * failure: the alternative is inventing a history nobody recorded, and the cost of being wrong is
+   * one button they can ignore. It is set by FINISHING the last lesson, never by skipping through
+   * them — `Tutorial` only writes it from the ending panel.
+   */
+  tutorialDone?: boolean
+  /**
+   * Which chapters of the GUIDED TOUR this save has been shown (`game/tour.ts`).
+   *
+   * A different thing from {@link tutorialDone}, which is the hands-on lessons: the tour is the
+   * spotlight that rings one control at a time and says what it does, and it is met on two screens
+   * at two different moments. Hence a LIST rather than a flag — "has the menu been explained" and
+   * "has a board been explained" are two questions, and a third chapter added later must not be
+   * suppressed by the first two having been seen.
+   *
+   * `string[]` and not `TourChapter[]` on purpose, and `migrate.ts` keeps whatever strings it
+   * finds: the save layer importing `game/tour.ts` would drag the store into the import graph of
+   * every test that touches a payload, and it has nothing to ask anyway — a chapter id this build
+   * does not know gates nothing, because `isChapterSeen` simply never matches it.
+   *
+   * Optional and NOT a schema bump, for the same reason as the two fields above: a save written
+   * before it existed lacks it, and an empty list is exactly the truth about such a save.
+   */
+  tour?: string[]
 }
 
 export type SaveState = SaveStateV4
@@ -272,6 +304,8 @@ export const DEFAULT_SAVE_STATE: SaveState = {
   rules: DEFAULT_RULES_ID,
   opponent: DEFAULT_OPPONENT_ID,
   defeated: [],
+  tutorialDone: false,
+  tour: [],
   skins: { board: 'default', pieces: 'default', effects: 'classic' },
   stats: emptyStats(),
   match: null,

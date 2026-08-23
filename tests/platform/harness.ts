@@ -132,6 +132,14 @@ export interface OpenOptions {
    * the whole point of any reload test.
    */
   save?: Record<string, unknown>
+  /**
+   * The scene to wait for before handing the page back. `'MainMenu'` by default.
+   *
+   * For one caller: `coach.test.ts` seeds a save the guided tour has not been shown, and the tour
+   * PAUSES the menu the moment it opens — `scene.isActive()` is false for a paused scene, so the
+   * default wait would sit there until it timed out on a game that is working correctly.
+   */
+  expectScene?: string
 }
 
 export interface GamePage {
@@ -144,9 +152,18 @@ export interface GamePage {
   click(x: number, y: number): Promise<void>
 }
 
-/** The shipped defaults with a purse, which is what most fixtures want — imported rather than
- * retyped, so a field added to `SaveState` cannot leave this file describing an older game. */
-export const DEFAULT_SAVE = { ...DEFAULT_SAVE_STATE, coins: 500 }
+/**
+ * The shipped defaults with a purse — imported rather than retyped, so a field added to `SaveState`
+ * cannot leave this file describing an older game.
+ *
+ * The save every fixture starts from: enough coins to buy something, and **both chapters of the
+ * guided tour already seen**.
+ *
+ * That second half is not a detail — `game/tour.ts` opens the tour over a save that has not seen it,
+ * so without this every test in this directory would be clicking at a menu behind a scrim.
+ * `coach.test.ts` is the one file that deliberately seeds an empty list.
+ */
+export const DEFAULT_SAVE = { ...DEFAULT_SAVE_STATE, coins: 500, tour: ['menu', 'match'] }
 
 /** Opens the game at a viewport size and waits until the menu is up. */
 export async function open(harness: Harness, options: OpenOptions): Promise<GamePage> {
@@ -171,7 +188,7 @@ export async function open(harness: Harness, options: OpenOptions): Promise<Game
 
   await page.goto(harness.url)
   await page.waitForFunction(() => Boolean(window.__game))
-  await waitForScene(page, 'MainMenu')
+  await waitForScene(page, options.expectScene ?? 'MainMenu')
 
   return {
     page,
@@ -272,7 +289,16 @@ export async function startMatch(game: GamePage, options: StartOptions = {}): Pr
     await game.click(go.x, go.y)
   }
 
-  await game.waitForScene('Game')
+  // Running, OR paused underneath the guided tour — which is exactly what a first board looks like
+  // on a save that has not seen the match chapter (`game/tour.ts`), and `scene.isActive()` is false
+  // for a paused scene. Insisting on "active" here would hang `coach.test.ts` on correct behaviour.
+  await game.page.waitForFunction(() => {
+    const phaser = window.__game
+    if (!phaser) return false
+    const scene = phaser.scene.getScene('Game')
+    if (!scene) return false
+    return scene.scene.isActive() || Boolean(phaser.scene.getScene('Coach')?.scene.isActive())
+  })
   await game.page.waitForFunction(() => Boolean((window.__game!.scene.getScene('Game') as unknown as { board?: unknown }).board))
 }
 

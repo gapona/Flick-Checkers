@@ -53,7 +53,7 @@ const MIN_VIEWPORT_HEIGHT = 420
 /**
  * A question over a paused scene, with two or three answers.
  *
- * Exists for one specific case named in `PROMPT-UI-CHAPAEV.md`'s chunk 2: **back inside `Game` must
+ * Exists for one specific case named in `PROMPT-UI.md`'s chunk 2: **back inside `Game` must
  * not leave the match outright.** A round is ten to twenty shots of accumulated position, and the
  * back button sits in the corner a thumb rests on — a stray tap that discards all of it is not a
  * risk worth taking to save one confirmation. `Modes` then wanted the same shape for a different

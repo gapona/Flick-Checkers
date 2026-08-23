@@ -6,7 +6,7 @@ import { getTheme } from './theme'
  *
  * Lifted from `../Checkers/src/ui/gamePanel.ts` (its own `PROMPT-GAME-SIDEPANEL.md` chunk 2), with
  * **one zone fewer**: that game's panel has a move list between the two player blocks and this one
- * has no moves to list. A Chapaev round is a sequence of flicks, not of notated moves, and a column
+ * has no moves to list. A round here is a sequence of flicks, not of notated moves, and a column
  * of "player 1 flicked" would be a list nobody reads taking the tallest zone on the screen.
  *
  * Zones are separated by **hairlines rather than by nested panels**: a panel inside a panel inside a

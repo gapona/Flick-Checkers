@@ -7,7 +7,7 @@ import type { Side } from '../sim/types'
  *
  * ## It is the HUD, not an ornament on it
  *
- * A round of Chapaev has no score, no clock and no progress bar. Who is winning is **entirely** a
+ * A round has no score, no clock and no progress bar. Who is winning is **entirely** a
  * question of how many discs each side has left, and before this the answer was only available by
  * counting the board — which is exactly the thing a player is already busy doing for aim. A number
  * would answer it too, but a row of pips answers it without reading: five against three is a shape.

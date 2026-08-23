@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Logic check for src/board/layout.ts -- the square-board geometry and the fit that puts it on a
 // screen. Replaces the draughts project's `verify:iso`, which tested an isometric projection this
-// game cancelled (CHAPAEV-PLAN.md §2); the module is deliberately Phaser-free so this can run as
+// game cancelled (GAME-PLAN.md §2); the module is deliberately Phaser-free so this can run as
 // plain assertions with no framework, no bundler and no browser, via the register-ts-loader.mjs +
 // ts-extensionless-loader.mjs Node-native-TS setup.
 //

@@ -1,5 +1,5 @@
 /**
- * The game's economy as pure data and pure functions (CHAPAEV-PLAN.md §8): what is for sale, what
+ * The game's economy as pure data and pure functions (GAME-PLAN.md §8): what is for sale, what
  * a finished round or match pays, and which skin is actually in force.
  *
  * **No Phaser and no `save/store.ts` import** — same rule as `game/rules.ts`, `board/layout.ts`

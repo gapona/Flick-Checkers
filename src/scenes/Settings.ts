@@ -7,6 +7,7 @@ import { isPlatformPaused, YTEvents } from '../platform/yt'
 import { getDisplayFontStack } from '../ui/font'
 import { bindLayout } from '../ui/layout'
 import { gameButton, type GameButton } from '../ui/button'
+import { navTo } from '../ui/chrome'
 import { createOverlay, type Overlay } from '../ui/overlay'
 import { createSlider, type Slider } from '../ui/slider'
 import { getTheme, toCssColor } from '../ui/theme'
@@ -25,8 +26,14 @@ const PANEL_WIDTH = 340
  * the second row's mute button ended 2 units INSIDE the Close button's top edge. The rows below are
  * placed so nothing touches; check the arithmetic in {@link Settings.layout} before moving any of
  * them.
+ *
+ * **404 now, because a third button joined the stack.** How-to-play is a full page rather than an
+ * overlay (see `scenes/HowToPlay.ts`), so it needs a row here rather than a second panel: 330 + a
+ * 62-unit button + 12 of gap. Redo the same addition before adding a fourth — this panel is not
+ * clamped to the viewport's HEIGHT the way it is to its width, so growth here is paid for on a short
+ * landscape screen.
  */
-const PANEL_HEIGHT = 330
+const PANEL_HEIGHT = 404
 /** Padding between the panel's border and the slider rows, per side. */
 const PANEL_PADDING = 20
 const TITLE_FONT_SIZE = 26
@@ -49,6 +56,7 @@ export class Settings extends Phaser.Scene {
   private title!: Phaser.GameObjects.Text
   private sfx!: Slider
   private music!: Slider
+  private helpButton!: GameButton
   private closeButton!: GameButton
 
   constructor() {
@@ -85,6 +93,18 @@ export class Settings extends Phaser.Scene {
     })
     for (const object of [...this.sfx.objects, ...this.music.objects]) this.overlay.panel.add(object)
 
+    /**
+     * The one entry point to the rules that exists on every screen, mid-match included.
+     *
+     * That is why it is HERE rather than on the menu: "what does this button actually do" is a
+     * question asked with a board in front of you, and the gear is the only control every screen
+     * carries. The menu's own offer (`MainMenu`) is a different thing — a first-run nudge toward the
+     * hands-on tutorial, which goes away once it has been taken.
+     */
+    this.helpButton = gameButton(this, { size: 'compact', variant: 'plum', label: t('howToPlay') })
+    this.overlay.panel.add(this.helpButton.container)
+    bindAction(this, 'openHelp', { pointer: this.helpButton.hitArea, keys: ['H'] }, () => this.openHelp())
+
     this.closeButton = gameButton(this, { size: 'compact', variant: 'ghost', label: t('close') })
     this.overlay.panel.add(this.closeButton.container)
     bindAction(this, 'close', { pointer: this.closeButton.hitArea, keys: ['ESC', 'ENTER'] }, () => this.close())
@@ -94,7 +114,24 @@ export class Settings extends Phaser.Scene {
   }
 
   layout(width: number, height: number): void {
-    const scale = uiScale(width)
+    /**
+     * **The panel is sized on BOTH axes, and it was sized on one.**
+     *
+     * `uiScale` reads the WIDTH, which is the right question for text on a phone and the wrong one
+     * for a panel whose height is a fixed stack of rows. At 740x360 — a landscape phone — `uiScale`
+     * returns 1, the 404-unit panel is centred on 360px of screen, and its title lands one pixel
+     * above the top of the viewport. `tests/platform/layout.test.ts` caught exactly that, the moment
+     * the help button made the stack taller.
+     *
+     * So the panel takes the SMALLER of the two: the width's scale, and whatever the height can
+     * actually pay for. Everything inside is laid out in the same units, so shrinking the panel
+     * shrinks the whole thing proportionally rather than rearranging it — and the buttons' tap
+     * targets do not shrink with it, since `gameButton` floors every hit area at `MIN_TOUCH_TARGET`.
+     *
+     * The 0.6 floor is where legibility gives out; below it the panel is allowed to overflow, on the
+     * same principle as `MainMenu`'s column. A viewport under 275px tall is not a target.
+     */
+    const scale = Math.min(uiScale(width), Math.max(0.6, (height - 32) / PANEL_HEIGHT))
     // Clamped to the viewport as well as scaled. `uiScale` floors at 0.8, so on a viewport narrower
     // than 272 + margin the panel would otherwise hang off both edges — and since the sliders now
     // size themselves from the row width they are given, a narrower panel costs a shorter track and
@@ -114,12 +151,36 @@ export class Settings extends Phaser.Scene {
     const left = -panelWidth / 2 + PANEL_PADDING * scale
     const rowWidth = panelWidth - PANEL_PADDING * 2 * scale
 
-    // Row centres. A row is as tall as its 64-unit mute button, so these are 80 apart to leave 16
-    // between them, and the second sits 13 clear of the Close button's top edge at 91.
-    this.sfx.layout(left, -34 * scale, scale, rowWidth)
-    this.music.layout(left, 46 * scale, scale, rowWidth)
+    // Row centres, still 80 apart so a 64-unit row leaves 16 between them — moved up bodily by the
+    // 74 units the help button added. Checked at scale 1 against a 404 panel: title 18 clear of the
+    // top, sliders 49 and 22 clear of their neighbours, help 6 clear of Close, Close 9 clear of the
+    // bottom.
+    this.sfx.layout(left, -71 * scale, scale, rowWidth)
+    this.music.layout(left, 9 * scale, scale, rowWidth)
 
-    this.closeButton.layout(0, panelHeight / 2 - 46 * scale, scale)
+    this.helpButton.layout(0, panelHeight / 2 - 108 * scale, scale)
+    this.closeButton.layout(0, panelHeight / 2 - 40 * scale, scale)
+  }
+
+  /**
+   * Leaves for the rules page — and it does so through the OPENER, not through this scene.
+   *
+   * `navTo` records where "back" should land by reading the scene it is given, so handing it this
+   * overlay would put `Settings` on the stack and send the back button to a panel that no longer
+   * exists. It is given the opener instead, which is also the scene `scene.start` has to be called
+   * from: an overlay cannot navigate out of a scene it is merely sitting on top of.
+   *
+   * **`{ resume: true }` when that opener is `Game`**, exactly as the side panel's shop button does.
+   * Without it the back button out of the rules page would start a brand-new match over the saved
+   * one, silently — which is the bug `ui/chrome.ts`'s `NavEntry` was given return data to prevent.
+   */
+  private openHelp(): void {
+    const openerKey = this.openerKey
+    const opener = this.scene.get(openerKey)
+    this.overlay.close(() => {
+      this.scene.stop()
+      navTo(opener, 'HowToPlay', undefined, openerKey === 'Game' ? { resume: true } : undefined)
+    })
   }
 
   private close(): void {

@@ -5,7 +5,7 @@
  * which is the only honest way to score a carrom shot: nothing about the aim predicts the result,
  * so the search plays every candidate out and judges the wreckage.
  *
- * The weights are CHAPAEV-PLAN.md §6's, with two additions noted below. They are deliberately blunt.
+ * The weights are GAME-PLAN.md §6's, with two additions noted below. They are deliberately blunt.
  * A finely-tuned evaluation would make the bot stronger, and §6 is explicit that strength is not
  * what varies between difficulties — noise is. A bot that is merely competent and occasionally
  * fluffs a shot is a better opponent than one that is precise and inhuman.
@@ -96,7 +96,7 @@ export const DEFAULT_WEIGHTS: EvaluationWeights = {
   expose: 1,
 }
 
-/** Just enough of `ChapaevRules` to know whether a shot is punished — passed as plain values rather
+/** Just enough of `RuleSet` to know whether a shot is punished — passed as plain values rather
  * than imported, so this module stays a function of its arguments. */
 export interface PenaltyRules {
   ownOffIsPenalty: boolean

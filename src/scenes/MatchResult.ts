@@ -25,7 +25,7 @@ import type { Side } from '../sim/types'
  *
  * ## The nine defects it is built against
  *
- * `PROMPT-UI-CHAPAEV.md`'s chunk 10 dissects a result panel from another prototype and names every
+ * `PROMPT-UI.md`'s chunk 10 dissects a result panel from another prototype and names every
  * mistake in it. This is the answer to each, in the same order, and they are worth keeping written
  * down because most of them are invisible until someone looks for them:
  *

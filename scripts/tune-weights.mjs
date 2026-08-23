@@ -2,7 +2,7 @@
 /**
  * Picks `src/bot/evaluate.ts`'s weights by playing them, not by arguing about them.
  *
- * Strict alternation (CHAPAEV-PLAN.md §3) changed what a shot is worth. Under the old rule a
+ * Strict alternation (GAME-PLAN.md §3) changed what a shot is worth. Under the old rule a
  * knockout bought a knockout AND the next turn, so tempo was something the evaluation got for free
  * by aiming at discs. It is not free any more, and three terms follow from that:
  *

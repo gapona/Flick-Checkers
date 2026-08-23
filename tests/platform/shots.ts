@@ -51,4 +51,37 @@ for (const [w, h, name] of [
   console.log('shot shop')
 }
 
+// The tutorial and the rules page. Both are new copy in narrow bands, and copy is the one thing a
+// geometry assertion cannot judge — `layout.test.ts` proves nothing overlaps, this is for reading it.
+for (const [w, h, name] of [
+  [390, 844, 'portrait-390'],
+  [844, 390, 'landscape-844'],
+] as [number, number, string][]) {
+  const game = await open(harness, { width: w, height: h, save: DEFAULT_SAVE })
+  await game.page.waitForTimeout(500)
+  await game.page.evaluate(() => window.__game!.scene.getScene('MainMenu').scene.start('Tutorial'))
+  await game.waitForScene('Tutorial')
+  await game.page.waitForTimeout(900)
+  await game.page.screenshot({ path: `build/shot-tutorial-${name}.png` })
+
+  await game.page.evaluate(() => window.__game!.scene.getScene('Tutorial').scene.start('HowToPlay'))
+  await game.waitForScene('HowToPlay')
+  await game.page.waitForTimeout(700)
+  await game.page.screenshot({ path: `build/shot-help-${name}.png` })
+  await game.page.close()
+  console.log('shot tutorial/help', name)
+}
+
+// And the settings panel, which grew a row and a height rule with it.
+{
+  const game = await open(harness, { width: 740, height: 360, save: DEFAULT_SAVE })
+  await game.page.waitForTimeout(500)
+  await game.page.evaluate(() => window.__game!.scene.getScene('MainMenu').scene.launch('Settings', { opener: 'MainMenu' }))
+  await game.waitForScene('Settings')
+  await game.page.waitForTimeout(600)
+  await game.page.screenshot({ path: 'build/shot-settings-740x360.png' })
+  await game.page.close()
+  console.log('shot settings')
+}
+
 await harness.close()

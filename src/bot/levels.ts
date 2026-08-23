@@ -2,7 +2,7 @@
  * The three numbers that make one opponent play differently from another, and a fixed reference
  * triple for the calibration harnesses.
  *
- * CHAPAEV-PLAN.md §6's best idea, unchanged: **difficulty is not different logic, it is noise.**
+ * GAME-PLAN.md §6's best idea, unchanged: **difficulty is not different logic, it is noise.**
  * Every opponent runs the same search and picks the same way; what changes is how many shots it
  * looks at and how badly its hand shakes on the one it chose. That matters for how losing feels — an
  * easy bot that misses looks like a person misjudging a shot, where an easy bot built by making

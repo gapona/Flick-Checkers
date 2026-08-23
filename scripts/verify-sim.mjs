@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Logic check for src/sim/ -- the disc solver.
 //
-// This is the project's single largest technical risk (CHAPAEV-PLAN.md §10: "all the risk is now in
+// This is the project's single largest technical risk (GAME-PLAN.md §10: "all the risk is now in
 // S2 and S5"), and the module is deliberately Phaser-free so this can run as plain assertions with
 // no framework, no bundler and no browser, via the register-ts-loader.mjs +
 // ts-extensionless-loader.mjs Node-native-TS setup.

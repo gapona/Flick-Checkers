@@ -2,7 +2,7 @@
 /**
  * How much of the pull actually does anything?
  *
- * `CHAPAEV-PLAN.md` §11 asks whether the friction feels right and says the question cannot be
+ * `GAME-PLAN.md` §11 asks whether the friction feels right and says the question cannot be
  * answered on paper. That is true of the FEELING. It is not true of what the feeling stands on, and
  * this script measures that half: from the real opening formations, through the real solver, how
  * hard you have to pull to reach the enemy at all, and what a full-power miss costs.
@@ -18,7 +18,7 @@
  *    number is not the ratio of the distances; it is its square root, which is exactly why it is
  *    so much worse than it looks.
  * 2. **Наказание < 50%.** The share of full-power shots, over the bot's own ±25° aiming cone, that
- *    end with the SHOOTER off the board. Losing your own disc is Chapaev; losing it every time is
+ *    end with the SHOOTER off the board. Losing your own disc is part of the game; losing it every time is
  *    not a risk, it is a rule.
  *
  * Anything that reduces reach (less speed, more friction) improves 2 and worsens 1. The one knob

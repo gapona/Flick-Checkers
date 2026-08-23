@@ -5,7 +5,7 @@
  * it produces `Disc`s the solver can step and the bot can search from, with nothing on screen
  * involved.
  *
- * CHAPAEV-PLAN.md §4 is the cheapest content in the whole plan and this file is all of it: the
+ * GAME-PLAN.md §4 is the cheapest content in the whole plan and this file is all of it: the
  * original game already contains five branches of arms, and each is nothing more than a different
  * arrangement plus **one mass number and one friction number**. Five perceptibly different rounds
  * out of one board, one solver and no new screens.

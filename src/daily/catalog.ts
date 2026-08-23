@@ -2,7 +2,7 @@
  * Reading the pre-built daily puzzles.
  *
  * **Pure TypeScript, no Phaser.** The catalogue is produced by `npm run daily` and committed —
- * generating one puzzle costs about four seconds of solver time (CHAPAEV-PLAN.md §7's
+ * generating one puzzle costs about four seconds of solver time (GAME-PLAN.md §7's
  * generate-and-reject loop), which is a build step's price and not a phone's.
  *
  * The file wraps: past the end of the catalogue the game repeats it from the start rather than

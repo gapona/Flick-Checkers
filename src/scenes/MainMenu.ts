@@ -2,7 +2,9 @@ import * as Phaser from 'phaser'
 import { MENU_BACKGROUND_KEY, MUSIC_KEY, SFX } from '../assets'
 import { playMusic, playSfx } from '../audio/audio'
 import { coinBalance } from '../game/wallet'
-import { hasSavedMatch } from '../game/persistence'
+import { hasSavedMatch, tutorialDone } from '../game/persistence'
+import { shouldRunTour } from '../game/tour'
+import type { CoachStep } from './Coach'
 import { dailyStatus } from '../daily/streak'
 import { dateKey } from '../daily/puzzle'
 import { t, getLocale} from '../i18n/strings'
@@ -105,7 +107,7 @@ const BACKGROUND_OVERSCAN = 1.04
  *
  * ## The daily is a deviation from the brief, and a deliberate one
  *
- * `PROMPT-UI-CHAPAEV.md`'s chunk 3 lists Continue and New match and moves everything else into the
+ * `PROMPT-UI.md`'s chunk 3 lists Continue and New match and moves everything else into the
  * navigation — but the daily puzzle (§7) is neither a mode nor a shop, and dropping its entry point
  * would delete a shipped feature. It stays here as `secondary`/`plum`, which keeps the one-gold rule
  * intact.
@@ -126,6 +128,7 @@ export class MainMenu extends Phaser.Scene {
   private continueButton?: GameButton
   private newMatchButton!: GameButton
   private dailyButton!: GameButton
+  private tutorialButton?: GameButton
 
   constructor() {
     super('MainMenu')
@@ -133,8 +136,10 @@ export class MainMenu extends Phaser.Scene {
 
   create() {
     // Cleared explicitly: a scene instance is reused across restarts, so a stale reference from a
-    // visit that HAD a saved match would survive into one that does not.
+    // visit that HAD a saved match would survive into one that does not. Same for the tutorial
+    // offer, which disappears the moment the player has been through it.
     this.continueButton = undefined
+    this.tutorialButton = undefined
     navMarkRoot(this)
 
     // The menu's own plate, not the equipped board's: a picture composed to sit behind a board
@@ -251,6 +256,32 @@ export class MainMenu extends Phaser.Scene {
       once(() => this.scene.start('Daily')),
     )
 
+    /**
+     * The first-run offer, and the reason it is CONDITIONAL on both halves.
+     *
+     * A menu is a question with an answer, and for somebody who has never seen this game the answer
+     * is "learn how to flick a disc", not "pick a rule set". So the tutorial is offered here — but
+     * only while it has never been finished AND there is nothing to continue, which is also what
+     * keeps this column at three buttons. Four would make the short-landscape case (`layout` below,
+     * where the wordmark is already being dropped to fit) worse for the one player least able to
+     * afford a cramped screen.
+     *
+     * It never becomes unreachable: the rules page lives behind the gear on every screen, and offers
+     * the tutorial itself. This button is a nudge, not the door.
+     *
+     * `plum`, not gold: the one-gold rule holds, and the gold stays on the action that starts a
+     * match. Pressing "how to play" is not what anybody should be pushed into.
+     */
+    if (!tutorialDone() && !this.continueButton) {
+      this.tutorialButton = gameButton(this, { size: 'secondary', variant: 'plum', label: t('howToPlay') })
+      bindAction(
+        this,
+        'openTutorial',
+        { pointer: this.tutorialButton.hitArea, keys: ['H'] },
+        once(() => this.scene.start('Tutorial')),
+      )
+    }
+
     playMusic(MUSIC_KEY)
 
     // Settings is an overlay over this scene, so the balance and the equipped skin can both change
@@ -263,6 +294,67 @@ export class MainMenu extends Phaser.Scene {
     bindLayout(this, (width, height) => this.layout(width, height))
 
     gameReady()
+
+    /**
+     * The guided tour, on a save that has not been shown this chapter yet (`game/tour.ts`).
+     *
+     * AFTER `gameReady()` rather than before: the certification contract is that the game is
+     * interactable, and it is — the tour is a dialog over a live menu, exactly like the settings
+     * panel, and its own two buttons are the answer to it. And after `bindLayout`, which runs one
+     * layout immediately, because {@link tourSteps} answers in SCREEN RECTANGLES and nothing has one
+     * before that.
+     *
+     * `delayedCall(0)` rather than a direct launch: `create()` is still running, so this scene's
+     * objects exist but the scene has not finished starting, and pausing a scene from inside its own
+     * `create()` queues an operation against the one that started it.
+     */
+    if (shouldRunTour('menu')) this.time.delayedCall(0, () => this.openTour())
+  }
+
+  /**
+   * Opens the tour over this menu — also where "Show me around" on the rules page ends up, since
+   * that button only forgets the chapters and comes back here, and this check runs on the way in.
+   */
+  private openTour(): void {
+    this.scene.pause()
+    this.scene.launch('Coach', { opener: 'MainMenu', chapter: 'menu' })
+  }
+
+  /**
+   * What the tour points at on this screen, in the order a new player meets it.
+   *
+   * Rectangles, asked for at the moment the coach opens — so a control that moved between
+   * orientations simply moves the hole, and a control this screen does not carry reports nothing at
+   * all. Note which buttons are deliberately absent: **Continue**, because the tour runs on a fresh
+   * save where there is nothing to continue, and **the tutorial offer**, because a step explaining
+   * a button that disappears the moment it is used is a step that is wrong for every later visit.
+   */
+  tourSteps(): CoachStep[] {
+    const steps: CoachStep[] = [
+      // `gameTitle`, not a second copy of the name: the tour's opening card and the wordmark it is
+      // drawn over must say the same thing, and two keys holding one name is two keys that can
+      // drift. (They already had — this one held the working name the design doc uses, which is
+      // what the game is to the people building it and not what it is called to the player.)
+      { target: null, title: 'gameTitle', body: 'coachHelloBody' },
+      { target: this.newMatchButton.container.getBounds(), title: 'coachPlayTitle', body: 'coachPlayBody' },
+      { target: this.dailyButton.container.getBounds(), title: 'coachDailyTitle', body: 'coachDailyBody' },
+    ]
+    const shop = this.navBar.tabBounds('Shop')
+    if (shop) steps.push({ target: shop, title: 'coachShopTitle', body: 'coachShopBody' })
+    const modes = this.navBar.tabBounds('Modes')
+    if (modes) steps.push({ target: modes, title: 'coachModesTitle', body: 'coachModesBody' })
+    // The bar as ONE step rather than two: the balance is at its left end and the gear at its right,
+    // so two spotlights would be two holes in the same 72-unit strip with the same sentence under
+    // them. What the player needs to know is that the strip is where both live.
+    const bar = this.topBar.parts()
+    if (bar.balance) {
+      const left = Math.min(bar.balance.x, bar.settings.x)
+      const right = Math.max(bar.balance.right, bar.settings.right)
+      const top = Math.min(bar.balance.y, bar.settings.y)
+      const bottom = Math.max(bar.balance.bottom, bar.settings.bottom)
+      steps.push({ target: { x: left, y: top, width: right - left, height: bottom - top }, title: 'coachBarTitle', body: 'coachBarBody' })
+    }
+    return steps
   }
 
   private openSettings(): void {
@@ -316,7 +408,7 @@ export class MainMenu extends Phaser.Scene {
     const head = { x: this.mascot.image.x + this.mascot.width / 2, y: this.mascot.image.y - this.mascot.height }
 
     // The lowest edge of anything the player can press, which is what the bubble has to stay under.
-    const buttons = [this.continueButton, this.newMatchButton, this.dailyButton].filter(
+    const buttons = [this.continueButton, this.newMatchButton, this.tutorialButton, this.dailyButton].filter(
       (button): button is GameButton => button !== undefined,
     )
     const floor = buttons.reduce((lowest, button) => Math.max(lowest, button.container.y + button.height / 2), 0)
@@ -415,7 +507,12 @@ export class MainMenu extends Phaser.Scene {
     const area = this.mascot.image.input?.hitArea as Phaser.Geom.Rectangle | undefined
     area?.setTo(0, 0, this.mascot.image.width, this.mascot.image.height)
 
-    const buttons = [this.continueButton, this.newMatchButton, this.dailyButton].filter((b): b is GameButton => b !== undefined)
+    // Order is reading order and it is the stack's order: continue or start, then learn, then the
+    // daily. The bubble's floor test below reads the SAME array, which is why both places build it
+    // from one expression rather than two lists that can disagree about what is on screen.
+    const buttons = [this.continueButton, this.newMatchButton, this.tutorialButton, this.dailyButton].filter(
+      (b): b is GameButton => b !== undefined,
+    )
 
     /**
      * **The whole column — wordmark, gap, buttons — has to fit between the two bars, and in short

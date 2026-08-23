@@ -76,7 +76,7 @@ function applyMusicAudibility(): void {
 /**
  * How a one-shot should sound this time.
  *
- * CHAPAEV-PLAN.md §9 makes this the game's most important sound rule: "the impact of disc on disc —
+ * GAME-PLAN.md §9 makes this the game's most important sound rule: "the impact of disc on disc —
  * volume and pitch FROM THE ENERGY of the hit. This is the game's main sound, it has to be
  * proportional to the force, otherwise a weak and a strong hit sound the same and the physics stops
  * being felt." A fixed sample played flat is exactly the failure it describes.

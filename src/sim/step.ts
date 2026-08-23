@@ -8,7 +8,7 @@
  *
  * ## Why not Arcade Physics
  *
- * `config.ts` has no `physics` block and must never grow one (CHAPAEV-PLAN.md §2). Three reasons,
+ * `config.ts` has no `physics` block and must never grow one (GAME-PLAN.md §2). Three reasons,
  * each on its own disqualifying:
  *
  * 1. **Tunnelling.** Arcade steps at the frame rate. At 60Hz a full-power flick moves 0.3 cells per

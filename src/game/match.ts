@@ -5,7 +5,7 @@
  * A round knows nothing about the match; the match reads a round's `RoundSummary` and decides what
  * happens next.
  *
- * CHAPAEV-PLAN.md §3: "a match is best of N rounds, not one round — one round is too short for a
+ * GAME-PLAN.md §3: "a match is best of N rounds, not one round — one round is too short for a
  * session". §4 supplies what the rounds differ by: the five branches, walked in order, so a match is
  * also a tour of the whole game rather than the same board five times.
  */

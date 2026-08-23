@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Generates the daily puzzles and writes them to public/assets/daily/puzzles.json (`npm run daily`).
 //
-// WHY AHEAD OF TIME. CHAPAEV-PLAN.md §7's generate-and-reject loop costs about four seconds per day
+// WHY AHEAD OF TIME. GAME-PLAN.md §7's generate-and-reject loop costs about four seconds per day
 // on a desktop — hundreds of full solver runs to prove one layout solvable and not trivial. That is
 // a fine price for a build step and an impossible one for a phone opening a game. §7 says the claim
 // is "verifiable at build time", and this is where it gets verified.

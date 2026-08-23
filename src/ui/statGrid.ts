@@ -7,7 +7,7 @@ import { getDisplayFontStack } from './font'
  *
  * ## Why not one centred line per row
  *
- * `PROMPT-UI-CHAPAEV.md`'s chunk 10 names the defect precisely: a centred `Score 9365` moves
+ * `PROMPT-UI.md`'s chunk 10 names the defect precisely: a centred `Score 9365` moves
  * sideways the moment the number gains a digit, and on a panel of four such rows every row moves by
  * a different amount. The eye then has no vertical line to follow and has to re-find the numbers on
  * every panel it sees — five times a match.

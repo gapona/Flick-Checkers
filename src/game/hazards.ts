@@ -18,7 +18,7 @@
  */
 import type { BoardMetrics } from '../board/layout'
 import type { Pit } from '../sim/types'
-import type { ChapaevRules } from './rules'
+import type { RuleSet } from './rules'
 
 /** A pit's mouth, in cells. Smaller than a disc's diameter on purpose: it should be something a
  * player steers around rather than a hole half the board falls into. */
@@ -52,7 +52,7 @@ export function pits(metrics: BoardMetrics): Pit[] {
 }
 
 /** The hazards a rule set asks for. Empty for every set that is not about them. */
-export function hazardsFor(rules: ChapaevRules, metrics: BoardMetrics): Hazards {
+export function hazardsFor(rules: RuleSet, metrics: BoardMetrics): Hazards {
   return {
     pits: rules.pits ? pits(metrics) : [],
   }

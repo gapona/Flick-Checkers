@@ -6,7 +6,7 @@ import { createBoardView, type BoardView } from '../board/boardView'
 import { boardSet, effectSet, pieceSet, type EffectBurst, type EffectSet } from '../game/skins'
 import { createDiscView, type DiscView } from '../board/discView'
 import { createAimView, type AimView } from '../board/aimView'
-import { getRuleSet, type ChapaevRules, type FormationId } from '../game/rules'
+import { getRuleSet, type RuleSet, type FormationId } from '../game/rules'
 import {
   clearMatch,
   currentOpponent,
@@ -19,6 +19,8 @@ import {
   rememberDefeated,
   saveMatch,
 } from '../game/persistence'
+import { shouldRunTour } from '../game/tour'
+import type { CoachStep } from './Coach'
 import type { Opponent, SpeechTrigger } from '../game/opponents'
 import { speechDirector, type SpeechDirector } from '../game/speech'
 import { createDialogueVoice, type DialogueVoiceManager } from '../audio/dialogueVoice'
@@ -54,7 +56,7 @@ import { anchorTopLeft, anchorTopRight } from '../ui/anchors'
 import { getDisplayFontStack } from '../ui/font'
 import { bindLayout } from '../ui/layout'
 import { gameButton, type GameButton } from '../ui/button'
-import { createTopBar, navBack, type TopBar, navTo} from '../ui/chrome'
+import { createTopBar, navBack, screenInsets, type TopBar, navTo} from '../ui/chrome'
 import { createDiscCounter, type DiscCounter } from '../ui/discCounter'
 import { safeAreaTop } from '../ui/safeArea'
 import { getTheme, neonButton, valueBadge, type NeonButton, type ValueBadge } from '../ui/theme'
@@ -115,6 +117,17 @@ const PANEL_MIN_ACTION_SCALE = 0.6
 const PANEL_SPEECH_MIN_HEIGHT = 34
 
 const SPEECH_ROW_HEIGHT = Math.ceil(SPEECH_LINE_HEIGHT * 2) + 4
+/** Clear space kept between the portrait HUD block and both ends of its own band. */
+const HUD_BAND_MARGIN = 10
+/**
+ * How far the portrait HUD block may be shrunk to fit a short screen, as a fraction of `uiScale`.
+ *
+ * 0.78 is what 320x568 — the shortest thing this game is checked at — actually needs; below that the
+ * price on a consumable button stops being readable, and a HUD nobody can read is worse than one
+ * that overhangs by a pixel. If a viewport ever needs less than this, the band is too small for the
+ * block and something has to LEAVE it rather than shrink further.
+ */
+const MIN_HUD_SHRINK = 0.78
 /** Discs left before a character starts talking about it. */
 const LOW_DISCS = 2
 
@@ -136,7 +149,7 @@ const PLAYER_SIDE = 'player' as const
 const BOT_SIDE = 'opponent' as const
 
 /**
- * Milliseconds of bot search allowed per frame (CHAPAEV-PLAN.md §6).
+ * Milliseconds of bot search allowed per frame (GAME-PLAN.md §6).
  *
  * A Hard search is ~500 solver runs, about 100ms in one go — a visible freeze. Spread over frames at
  * this budget it costs a fifth of a second of "thinking", which the game has to show anyway for the
@@ -222,7 +235,7 @@ const KNOCKOUT_PARTICLE_DEPTH = 40
 /**
  * The gameplay scene.
  *
- * **State of play (CHAPAEV-PLAN.md §10):** S1 stood up the camera contract and the board, S2 built
+ * **State of play (GAME-PLAN.md §10):** S1 stood up the camera contract and the board, S2 built
  * the solver, S3 put discs on screen, S5 handed the gesture to the player, and S6 — this — gives the
  * round its rules: turns pass, penalties bite, and somebody wins.
  *
@@ -240,7 +253,7 @@ const KNOCKOUT_PARTICLE_DEPTH = 40
  * {@link syncCameraMembership} is wired to.
  */
 export class Game extends Phaser.Scene {
-  private rules!: ChapaevRules
+  private rules!: RuleSet
   private board!: BoardView
   private discView!: DiscView
   private aimView!: AimView
@@ -458,7 +471,7 @@ export class Game extends Phaser.Scene {
     })
     this.topBar.setCoins(coinBalance())
 
-    // The one HUD element that answers "who is winning", which a round of Chapaev has no other way
+    // The one HUD element that answers "who is winning", which a round has no other way
     // of saying — see `ui/discCounter.ts`.
     this.discCounter = createDiscCounter(this, this.rules.piecesPerSide, activePieceSet())
 
@@ -598,6 +611,89 @@ export class Game extends Phaser.Scene {
       clearMatch()
       this.startRound(this.match.first)
     }
+
+    /**
+     * The match half of the guided tour, the first time a board opens (`game/tour.ts`).
+     *
+     * LAST in `create()`, because every step here is a screen rectangle and the discs have to be on
+     * the board before the camera can be asked where the board is. `delayedCall(0)` for the reason
+     * `MainMenu` uses one — pausing a scene from inside its own `create()` queues an operation
+     * against the one that started it.
+     *
+     * Nothing is interrupted by pausing here, whoever shoots first: the bot's search is pumped from
+     * `update()`, which a paused scene does not run, so it simply has not started. A tour that
+     * opened over a thinking bot would be a tour with a frozen "Thinking…" behind it.
+     */
+    if (shouldRunTour('match')) this.time.delayedCall(0, () => this.openTour())
+  }
+
+  private openTour(): void {
+    // The opponent's greeting is typing itself out as this opens, and a line revealing itself
+    // behind a scrim finishes unread with the voice still going.
+    this.silenceOpponent()
+    this.scene.pause()
+    this.scene.launch('Coach', { opener: 'Game', chapter: 'match' })
+  }
+
+  /**
+   * What the tour points at on a board.
+   *
+   * The BOARD's rectangle is converted out of world space HERE rather than stored by `layout()`:
+   * this scene's main camera is zoomed onto board space, so the board's own coordinates are not
+   * screen coordinates and only the camera knows the current fit. Everything else on this screen is
+   * drawn by `uiCamera` at 1:1, so its bounds are already screen px.
+   *
+   * The two HUD shapes are covered by asking for BOTH and letting the coach drop whichever is not
+   * there: the status capsule is hidden in the side panel's layout and the opponent's block is
+   * hidden in the strip's, so exactly one of those two steps survives on any given screen. That is
+   * the whole reason `Coach` drops a step whose target has no size — this list needs no branch per
+   * layout, and neither will the next one added to it.
+   */
+  tourSteps(): CoachStep[] {
+    // A zero box and NOT `null`: `null` is a legitimate step ABOUT THE WHOLE SCREEN, so it would add
+    // a second copy of a step rather than dropping one.
+    const ZERO_RECT = { x: 0, y: 0, width: 0, height: 0 }
+    const camera = this.cameras.main
+    /**
+     * ONE OF THE PLAYER'S OWN DISCS, not the whole board — and that is a geometry decision as much
+     * as a teaching one.
+     *
+     * A square board fits the viewport's shorter side, so in portrait the spotlight would be a
+     * 390-unit hole in a 844-tall screen with ~230 units of band above it and a card taller than
+     * that: the coach's last-resort placement then draws the card over the ring, which is the one
+     * thing it exists not to do. Ringing a disc leaves the whole band free — and it is also the more
+     * honest picture, since what the step says is "press one of YOUR OWN discs" and the ring is then
+     * around exactly that. Seen in a screenshot of the real thing, not deduced.
+     */
+    const own = liveDiscs(this.sim).filter((disc) => disc.side === this.humanSide())
+    const middle = own[Math.floor(own.length / 2)]
+    const toScreen = (x: number, y: number, r: number) => ({
+      x: (x - r - camera.worldView.x) * camera.zoom,
+      y: (y - r - camera.worldView.y) * camera.zoom,
+      width: r * 2 * camera.zoom,
+      height: r * 2 * camera.zoom,
+    })
+    const board = middle ? toScreen(middle.x, middle.y, middle.r) : ZERO_RECT
+    /** A hidden object reports a ZERO box rather than where it would be if it were shown. */
+    const boxOf = (object: Phaser.GameObjects.Text | Phaser.GameObjects.Container): CoachStep['target'] => {
+      if (!object.visible) return ZERO_RECT
+      const bounds = object.getBounds()
+      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+    }
+
+    return [
+      { target: board, title: 'coachBoardTitle', body: 'coachBoardBody' },
+      // No target: "a disc that crosses the edge is gone" is a rule about the whole board, and
+      // ringing one square would say it is about that square.
+      { target: null, title: 'coachEdgeTitle', body: 'coachEdgeBody' },
+      { target: boxOf(this.statusText), title: 'coachTurnTitle', body: 'coachTurnBody' },
+      // Gated on the panel EXISTING rather than on the block's own box, which keeps whatever the
+      // last panelled layout put in it: a phone rotated from landscape to portrait would otherwise
+      // report both this step and the capsule's, and the player would be told whose shot it is twice.
+      { target: this.panelFit?.panel ? this.opponentBlock.box : ZERO_RECT, title: 'coachTurnTitle', body: 'coachTurnBody' },
+      { target: boxOf(this.retakeButton.container), title: 'coachRetakeTitle', body: 'coachRetakeBody' },
+      { target: boxOf(this.powerButton.container), title: 'coachPowerTitle', body: 'coachPowerBody' },
+    ]
   }
 
   /** The branch of arms this round is fought with (§4). */
@@ -777,7 +873,7 @@ export class Game extends Phaser.Scene {
   }
 
   /**
-   * The gate (CHAPAEV-PLAN.md §2, trap 4): a press only begins an aim if it landed on one of the
+   * The gate (GAME-PLAN.md §2, trap 4): a press only begins an aim if it landed on one of the
    * PLAYER's live discs, it is the player's turn, the board is still, and the round is not over.
    *
    * S6 gated on `round.turn` so one person could play both sides; S7 made the opponent a bot, and
@@ -1408,7 +1504,7 @@ export class Game extends Phaser.Scene {
       this.say('onPlayerKnockout', 'alarm')
     } else if (ownOff > 0) {
       // And this is you posting one of your OWN off, which is the funniest thing that happens in
-      // Chapaev and which the character used to watch in total silence. Tested after
+      // this game and which the character used to watch in total silence. Tested after
       // `onPlayerKnockout` for the same priority reason the branch above is ordered as it is: a shot
       // that took one of its discs AND cost you one of yours is, from where it is standing, first of
       // all a loss.
@@ -1948,7 +2044,7 @@ export class Game extends Phaser.Scene {
   /**
    * The side panel: opponent block, what it is saying, the consumables, the player block.
    *
-   * Four zones where the reference has five — its move list is gone, because a Chapaev round is a
+   * Four zones where the reference has five — its move list is gone, because a round here is a
    * sequence of flicks rather than of notated moves and a column of "player 1 flicked" would be the
    * tallest thing on the screen and the least read. What takes the middle instead is the OPPONENT'S
    * LINE, which in the band layout has a row of its own under the status: a character that talks
@@ -2096,7 +2192,6 @@ export class Game extends Phaser.Scene {
     this.powerButton.layout(0, 0, scale)
 
     const gap = 10 * scale
-    const actionsWidth = this.retakeButton.width + gap + this.powerButton.width
 
     /**
      * **The status is wrapped to what is left of its band after the portrait's column.**
@@ -2119,7 +2214,7 @@ export class Game extends Phaser.Scene {
 
     if (portrait) {
       /**
-       * Stacked, not side by side.
+       * Stacked, not side by side, and SHRUNK to the band rather than centred in it.
        *
        * The brief describes one strip with the status at the left and the consumables at the right,
        * and it does not fit: the capsule plus two `compact` buttons is 478 design units against a
@@ -2127,29 +2222,62 @@ export class Game extends Phaser.Scene {
        * buttons in a group are one size" rule the whole factory exists for — or runs them off the
        * screen, which is what it did.
        *
-       * So the strip is two rows. The status is placed first and the buttons measured against the
-       * height it has RIGHT NOW: it grows from one line to three as the round announces itself, and
-       * whichever of the two was positioned against the other's stale size is the one that ends up
-       * underneath it.
+       * So the strip is two rows, and the block is fitted to the band the same way `Settings` fits
+       * its panel to the viewport's HEIGHT: `uiScale` reads the WIDTH, which says nothing about how
+       * much vertical room a square board has left over. **A SHORT phone is where that bites** —
+       * 375x664 and 360x640 leave the trailing band 152 and 148px against a block that wants ~153,
+       * so a block merely CENTRED in the band hung a pixel off the bottom of the screen with the
+       * two priced buttons on it, and the guided tour's ring around one of them was cut in half.
+       * A tall phone has 37-41px of slack and never showed it.
+       *
+       * The status is placed first and the buttons measured against the height it has RIGHT NOW: it
+       * grows from one line to three as the round announces itself, and whichever of the two was
+       * positioned against the other's stale size is the one that ends up underneath it.
        */
-      const speechRow = SPEECH_ROW_HEIGHT * scale
-      const block = statusH + speechRow + 12 * scale + this.retakeButton.height
-      const top = trailing.y - block / 2
+      const insetBottom = screenInsets(this).bottom
+      const margin = HUD_BAND_MARGIN * scale
+      const room = this.bands.trailing.height - insetBottom - margin * 2
+
+      /**
+       * Measured per pass, not divided once.
+       *
+       * A `Text`'s height quantises to whole lines, so the block does not shrink smoothly with the
+       * scale — one division lands short or long. Same finding as the side panel's button pairs,
+       * which came out a pixel over their own panel when the factor was computed in one shot.
+       */
+      let hudScale = scale
+      let block = this.measureTrailingStack(hudScale)
+      for (let pass = 0; pass < 3 && block > room; pass += 1) {
+        hudScale = Math.max(scale * MIN_HUD_SHRINK, hudScale * (room / block))
+        block = this.measureTrailingStack(hudScale)
+      }
+
+      const speechRow = SPEECH_ROW_HEIGHT * hudScale
+      const stackStatusH = this.statusText.height + 16 * hudScale
+      const stackColumn = portraitWidthFor(HUD_PORTRAIT_HEIGHT * hudScale) + PORTRAIT_GAP * hudScale
+      const stackRoom = Math.max(110 * hudScale, this.bands.trailing.width - stackColumn - 16 * hudScale)
+      const stackW = Math.min(stackRoom, Math.max(this.statusText.width + 28 * hudScale, 120 * hudScale))
+
+      // Centred in the band where it fits, and pushed off the bottom edge where it does not — the
+      // floor below wins over the centring, since what is at the bottom of this block is two
+      // buttons and what is at the top of it is empty background.
+      const floor = this.viewportH - insetBottom - margin
+      const top = Math.max(this.bands.trailing.y + margin, Math.min(trailing.y - block / 2, floor - block))
 
       // Text first, plate second, around where the text actually ended up.
-      const statusX = this.speakerColumnX(this.bands.trailing, statusW, scale)
-      this.statusText.setPosition(statusX, top + statusH / 2)
-      this.drawStatusPlate(this.statusText.x, this.statusText.y, statusW, statusH, scale)
-      this.layoutSpeech(this.statusText.x, top + statusH + 4 * scale, statusW, scale)
+      const statusX = this.speakerColumnX(this.bands.trailing, stackW, hudScale)
+      this.statusText.setPosition(statusX, top + stackStatusH / 2)
+      this.drawStatusPlate(this.statusText.x, this.statusText.y, stackW, stackStatusH, hudScale)
+      this.layoutSpeech(this.statusText.x, top + stackStatusH + 4 * hudScale, stackW, hudScale)
       // Feet on the bottom of the reserved row, not on the bottom of whatever text happens to be in
       // it — a face that rose and fell with the length of the current quip would be the same bug the
       // reserved row exists to prevent, one element further along.
-      this.layoutPortrait(this.statusText.x - statusW / 2, top + statusH + speechRow, scale)
+      this.layoutPortrait(this.statusText.x - stackW / 2, top + stackStatusH + speechRow, hudScale)
 
-      const actionsY = top + statusH + speechRow + 12 * scale + this.retakeButton.height / 2
-      const half = actionsWidth / 2
-      this.retakeButton.layout(trailing.x - half + this.retakeButton.width / 2, actionsY, scale)
-      this.powerButton.layout(trailing.x + half - this.powerButton.width / 2, actionsY, scale)
+      const actionsY = top + stackStatusH + speechRow + 12 * hudScale + this.retakeButton.height / 2
+      const half = (this.retakeButton.width + 10 * hudScale + this.powerButton.width) / 2
+      this.retakeButton.layout(trailing.x - half + this.retakeButton.width / 2, actionsY, hudScale)
+      this.powerButton.layout(trailing.x + half - this.powerButton.width / 2, actionsY, hudScale)
       return
     }
 
@@ -2167,6 +2295,28 @@ export class Game extends Phaser.Scene {
     const stackGap = this.retakeButton.height + gap
     this.retakeButton.layout(trailing.x, trailing.y - stackGap / 2, scale)
     this.powerButton.layout(trailing.x, trailing.y + stackGap / 2, scale)
+  }
+
+  /**
+   * Sizes the portrait HUD stack at `scale` and reports how tall the block then wants to be.
+   *
+   * Sizing and measuring are the same pass on purpose: the block's height IS the sum of what the
+   * text and the buttons came out as, so a "pure" measurement would have to model a `Text`'s line
+   * breaking rather than ask it. The caller runs this two or three times with a smaller scale until
+   * the answer fits the band — see `layoutHud`'s portrait branch for why a short phone needs it.
+   */
+  private measureTrailingStack(scale: number): number {
+    this.statusText.setFontSize(STATUS_FONT_SIZE * scale)
+    // Positioned later; this call is here to make the buttons adopt the scale so their height is
+    // the height this block is measured with.
+    this.retakeButton.layout(0, 0, scale)
+    this.powerButton.layout(0, 0, scale)
+
+    const column = portraitWidthFor(HUD_PORTRAIT_HEIGHT * scale) + PORTRAIT_GAP * scale
+    const room = Math.max(110 * scale, this.bands.trailing.width - column - 16 * scale)
+    this.statusText.setWordWrapWidth(room - 28 * scale)
+
+    return this.statusText.height + 16 * scale + SPEECH_ROW_HEIGHT * scale + 12 * scale + this.retakeButton.height
   }
 
   /** The status capsule. A plate rather than bare text because it sits over the background rather

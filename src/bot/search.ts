@@ -4,7 +4,7 @@
  *
  * **Pure TypeScript, no Phaser.** There is no minimax here and there could not be — a carrom board
  * has no move list to branch over, and nothing about an aim predicts its result. What replaces it is
- * brute force through the same solver the player's shots go through (CHAPAEV-PLAN.md §6), which is
+ * brute force through the same solver the player's shots go through (GAME-PLAN.md §6), which is
  * only affordable because that solver is a pure function over a cloneable state.
  *
  * ## The search is exact; the hand is not
@@ -69,7 +69,7 @@ export interface BotQuirks {
    *
    * The character aims the shot it wanted and then consistently over- or under-hits it, which is a
    * habit rather than a lapse of judgement — and it is the single most VISIBLE quirk in this game,
-   * because a Chapaev shot 25% too hard is a disc that carries on off the far edge.
+   * because a shot 25% too hard is a disc that carries on off the far edge.
    */
   powerScale?: number
   /** The powers it is willing to consider at all, out of {@link POWER_LEVELS}. A cavalry charge that

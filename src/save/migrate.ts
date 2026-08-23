@@ -212,6 +212,15 @@ function normalizeV4(raw: Record<string, unknown>): SaveState {
     // Unknown ids are dropped rather than kept: `defeated` is read by `isOpponentUnlocked`, so a
     // stale id would be a key that unlocks nothing — harmless, but it would accumulate forever.
     defeated: Array.isArray(raw.defeated) ? raw.defeated.filter((id): id is string => typeof id === 'string' && isOpponentId(id)) : [],
+    // Absent on every save written before the tutorial existed, and `false` is what that means:
+    // nobody has been through it. Same "falls straight through" case as `bestCombo`, not a bump.
+    tutorialDone: raw.tutorialDone === true,
+    // Unknown ids are KEPT, unlike `defeated` above, and the asymmetry is deliberate: a stale
+    // opponent id is a key that unlocks nothing and would accumulate, while a stale chapter id is
+    // a screen somebody has already been walked through. Dropping it would replay a tour on a
+    // build that renamed a chapter, which is the one failure this list exists to prevent. Nothing
+    // here knows what a chapter is — see `SaveStateV4.tour`.
+    tour: Array.isArray(raw.tour) ? raw.tour.filter((id): id is string => typeof id === 'string') : [],
     // Not validated against SKIN_IDS here: `game/economy.ts`'s `equippedSkin()` already refuses an
     // unknown or unowned id at the point of use, and doing it in both places means a skin renamed
     // in a future build silently wipes the field on load instead of degrading to 'default'.
@@ -245,7 +254,7 @@ function normalizeDaily(raw: unknown): SavedDaily {
  * Migrates a parsed-but-unverified save payload to the current SaveState shape.
  * Returns null for anything unrecognized — the caller falls back to DEFAULT_SAVE_STATE.
  *
- * Ladder pattern (CHAPAEV-PLAN.md §8): each case upgrades the payload in place and falls through to
+ * Ladder pattern (GAME-PLAN.md §8): each case upgrades the payload in place and falls through to
  * the next, ending at SAVE_SCHEMA_VERSION. **v1 -> v2 added the match in progress**, and a v1
  * payload simply lacks the field — `normalizeMatch` returns `null` for anything it does not
  * recognise, including absence, so the case falls straight through with no upgrade step at all. A

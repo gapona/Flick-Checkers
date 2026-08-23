@@ -5,7 +5,7 @@ import { getTheme } from '../ui/theme'
  * What aiming looks like: the disc you have hold of, the band you are pulling, where the shot is
  * pointed, and how hard it will go.
  *
- * All four exist because CHAPAEV-PLAN.md §3 asks for a gesture that is **readable while it is being
+ * All four exist because GAME-PLAN.md §3 asks for a gesture that is **readable while it is being
  * made**, which is the entire argument for a slingshot over a real flick. A flick's power is only
  * knowable after it has happened; this has to show its power before committing, or the choice was
  * never offered.

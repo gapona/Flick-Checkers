@@ -1,5 +1,5 @@
 ﻿/**
- * The branches of arms (CHAPAEV-PLAN.md §4) and the stacks two of them field (§2's trap 2).
+ * The branches of arms (GAME-PLAN.md §4) and the stacks two of them field (§2's trap 2).
  *
  * S8's definition of done is "five rounds are playable, a stack comes apart at its threshold", and
  * both halves are here — the five rounds are played through the real solver and the real round

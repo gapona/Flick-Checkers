@@ -1,5 +1,5 @@
 /**
- * What a shot was worth — CHAPAEV-PLAN.md §5's combo counter and trick points.
+ * What a shot was worth — GAME-PLAN.md §5's combo counter and trick points.
  *
  * **Pure TypeScript, no Phaser.** Every input is already in the `SimOutcome` the solver produced,
  * so scoring is a function of what happened rather than a running tally something has to remember

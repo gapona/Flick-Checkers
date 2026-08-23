@@ -1,7 +1,7 @@
 /**
  * The disc, the world it lives in, and every number that describes how it moves.
  *
- * **Pure TypeScript — nothing under `src/sim/` may ever import Phaser** (CHAPAEV-PLAN.md §2).
+ * **Pure TypeScript — nothing under `src/sim/` may ever import Phaser** (GAME-PLAN.md §2).
  * This is the single largest technical risk in the project, so it stays runnable and testable under
  * plain `node` (`npm run verify:sim`) with no bundler, canvas or browser involved — and that same
  * property is what makes the bot (§6), the daily-puzzle solvability proof (§7) and replays fall out

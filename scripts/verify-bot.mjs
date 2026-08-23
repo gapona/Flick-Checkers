@@ -1,5 +1,5 @@
 ﻿#!/usr/bin/env node
-// S7's definition of done, from CHAPAEV-PLAN.md §10:
+// S7's definition of done, from GAME-PLAN.md §10:
 //
 //   "Hard выигрывает у Easy в 90+ из 100 автопрогонов; бюджет кадра ≤8 мс замерен"
 //

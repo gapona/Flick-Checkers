@@ -3,7 +3,7 @@
  * at.
  *
  * **Pure TypeScript, no Phaser** — same rule as the rest of `src/sim/`, and for a sharper reason
- * than usual here. CHAPAEV-PLAN.md §10 puts the project's remaining risk in exactly this chunk:
+ * than usual here. GAME-PLAN.md §10 puts the project's remaining risk in exactly this chunk:
  * everything else can be judged from a screenshot, but whether aiming FEELS right cannot, and the
  * numbers that decide it (how far a full-power pull is, where the cancel threshold sits) have to be
  * tunable in one place and checkable without a browser.

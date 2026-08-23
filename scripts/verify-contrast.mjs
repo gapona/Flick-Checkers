@@ -1,5 +1,5 @@
 /**
- * The contrast verdict of `PROMPT-UI-CHAPAEV.md`'s chunk 11, as arithmetic.
+ * The contrast verdict of `PROMPT-UI.md`'s chunk 11, as arithmetic.
  *
  * Three claims are made about this game's colour, all of them load-bearing, and all of them the
  * kind that stay true for exactly as long as nobody adds a skin:

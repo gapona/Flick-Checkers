@@ -134,6 +134,26 @@ export function bestCombo(): number {
   return getState().bestCombo
 }
 
+// -- the tutorial ---------------------------------------------------------------------------------
+
+/**
+ * Whether the player has been through the tutorial.
+ *
+ * Read by `MainMenu` only, to decide whether to offer it as a button. Everything else reaches it
+ * through the gear, unconditionally — a screen that explains the game must not become unreachable
+ * because somebody once pressed Finish on it.
+ */
+export function tutorialDone(): boolean {
+  return getState().tutorialDone === true
+}
+
+/** Set by finishing the last lesson, never by skipping through them — see `scenes/Tutorial.ts`. */
+export function rememberTutorialDone(): void {
+  mutate((state) => {
+    state.tutorialDone = true
+  })
+}
+
 // -- the match in progress ----------------------------------------------------------------------
 
 /** True when there is something for a "Continue" entry point to resume. */

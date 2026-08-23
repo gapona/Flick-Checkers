@@ -12,7 +12,7 @@ import type { BoardMetrics } from './layout'
  *
  * **Because "the disc flies off" versus "the disc bounces back" cannot be said in one line of text,
  * and can be drawn in one picture.** That is the whole argument for the icon existing —
- * `PROMPT-UI-CHAPAEV.md`'s chunk 6 makes it explicitly, and it generalises past bumpers: pits are
+ * `PROMPT-UI.md`'s chunk 6 makes it explicitly, and it generalises past bumpers: pits are
  * equally invisible in prose and equally obvious as a diagram.
  *
  * Generated from `getRuleSet()` and `hazardsFor()` — the same data the round is built from — and

@@ -12,7 +12,7 @@ import { YTEvents } from './yt'
 // launched overlays: they are ordinary scenes now, and a platform pause should freeze them like any
 // other. What remains is what is genuinely launched over something else and must keep its own close
 // button alive through a pause — otherwise the player is stuck behind a dialog they cannot dismiss.
-const OVERLAY_SCENES = new Set(['Settings', 'MatchResult', 'DailyResult', 'Confirm', 'Opponents'])
+const OVERLAY_SCENES = new Set(['Settings', 'MatchResult', 'DailyResult', 'Confirm', 'Opponents', 'Coach'])
 
 /**
  * Freezes gameplay on `YTEvents.PAUSE` and unfreezes it on `YTEvents.RESUME` — the

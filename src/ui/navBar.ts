@@ -69,6 +69,15 @@ interface Tab {
 
 export interface NavBar {
   readonly objects: Phaser.GameObjects.GameObject[]
+  /**
+   * Where one tab currently sits, in SCREEN px — for the guided tour's spotlight
+   * (`scenes/Coach.ts`). `null` for a key this bar does not carry.
+   *
+   * The tab's own THIRD of the bar, which is also its hit area: that is the shape a player is
+   * actually aiming a thumb at, and ringing only the icon would teach a smaller target than the
+   * one that works.
+   */
+  tabBounds(key: NavSceneKey): { x: number; y: number; width: number; height: number } | null
   /** Total height including the bottom inset — what a scene leaves free beneath its content. */
   height(scene: Phaser.Scene): number
   layout(width: number, height: number): void
@@ -109,6 +118,12 @@ export function createNavBar(scene: Phaser.Scene, active: NavSceneKey): NavBar {
 
   return {
     objects,
+    tabBounds(key: NavSceneKey) {
+      const tab = tabs.find((candidate) => candidate.key === key)
+      if (!tab) return null
+      const bounds = tab.hit.getBounds()
+      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+    },
     height(host: Phaser.Scene) {
       return NAV_BAR_HEIGHT * uiScale(host.scale.width) + screenInsets(host).bottom
     },

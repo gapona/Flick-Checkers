@@ -16,7 +16,7 @@ import { boardSet, DEFAULT_BOARD_SET, type BoardSet, type BoardSetId } from '../
  *
  * There is no disc layer here. The draughts project's version of this file owned piece sprites and
  * their per-cell animations (`hop`, `promote`, `setTargets`, `setDimmed`) — all of it deleted with
- * the rules that drove it (CHAPAEV-PLAN.md §1). What replaces it is S3: discs at CONTINUOUS
+ * the rules that drove it (GAME-PLAN.md §1). What replaces it is S3: discs at CONTINUOUS
  * positions, rendered at a state interpolated between two fixed simulation steps, with the shadow
  * as its own sprite rather than baked into the disc (§2 — a baked shadow flies along with a struck
  * disc, which is the one thing a top-down view cannot get away with). The bake below is the half of
@@ -35,7 +35,7 @@ import { boardSet, DEFAULT_BOARD_SET, type BoardSet, type BoardSetId } from '../
  * **Darker and much closer together than the draughts pair they replace** (`#7ed2de` / `#286a85`),
  * and that inversion is the whole point rather than a taste change. In draughts the board is the
  * playfield: you count cells, a piece stands in the middle of one, and high square contrast helps.
- * In Chapaev, after the first shot **no disc ever stands on a cell again** — the grid stops being
+ * Here, after the first shot **no disc ever stands on a cell again** — the grid stops being
  * a set of ARRIVAL squares and becomes a RULER, which only has to say how far. A ruler that
  * out-shouts the pieces measured against it is a ruler in the way, and the old pair had a bigger
  * luminance gap between its own two tones than between either tone and a disc.

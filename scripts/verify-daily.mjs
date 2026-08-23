@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// S11's definition of done, from CHAPAEV-PLAN.md §10:
+// S11's definition of done, from GAME-PLAN.md §10:
 //
 //   "the script generates 30 days and proves each one solvable"
 //

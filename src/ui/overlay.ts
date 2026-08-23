@@ -20,8 +20,16 @@ import { uiScale } from './uiScale'
  * close on a tap outside, because a stray tap must not be able to skip the outcome of a round.
  */
 
-const SCRIM_COLOR = 0x0a0612
-const SCRIM_ALPHA = 0.72
+/**
+ * The dimming, exported because `scenes/Coach.ts` cannot use this module at all.
+ *
+ * That scene has to cut a HOLE in the scrim — four bands around one control — and this helper draws
+ * one rectangle and animates the panel by zooming `cameras.main`, which is exactly wrong when the
+ * hole must stay registered with a control drawn by a scene that is not zooming. What it can share
+ * is the two numbers, so a dimmed screen is the same dimmed screen wherever it comes from.
+ */
+export const SCRIM_COLOR = 0x0a0612
+export const SCRIM_ALPHA = 0.72
 const SCRIM_FADE_MS = 120
 /** The panel arrives from slightly under its own size and overshoots — near enough to 1 that it
  * reads as a snap rather than a zoom. */

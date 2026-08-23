@@ -84,7 +84,7 @@ const MUTED_COLOR = '#a892c4'
  *
  * ## Deviation from the brief, stated
  *
- * `PROMPT-UI-CHAPAEV.md`'s chunk 6 names four cards — Classic, Bumpers, Timed duel, Daily. Three now
+ * `PROMPT-UI.md`'s chunk 6 names four cards — Classic, Bumpers, Timed duel, Daily. Three now
  * map exactly onto shipped rule sets (the timed one is `blitz`); the daily is not a rule set at all
  * but a separate scene with its own entry on the menu, and putting it here would make one card behave
  * unlike the others. `pits` is a shipped, reachable mode the four-card list does not mention. So the

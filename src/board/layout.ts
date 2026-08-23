@@ -1,12 +1,12 @@
 /**
  * Flat square-grid geometry: where the board sits, how big a tile is, and which cell a point is
- * in. **Pure TypeScript — this module must never import Phaser** (CHAPAEV-PLAN.md §2), so it stays
+ * in. **Pure TypeScript — this module must never import Phaser** (GAME-PLAN.md §2), so it stays
  * runnable and testable under plain `node` (`npm run verify:fit`), with no bundler, canvas or
  * browser involved.
  *
  * ## Cells on a game that has none
  *
- * Chapaev's discs live at CONTINUOUS positions — a disc is wherever the last shot left it, and the
+ * This game's discs live at CONTINUOUS positions — a disc is wherever the last shot left it, and the
  * simulation (`src/sim/`) never rounds one to a square. So why a grid at all? Because the board is
  * still drawn as a checkerboard, and because the grid is the unit the rest of the game is written
  * in: the starting formations of §4 are placed on cells, the disc radius and the impulse ceiling of
@@ -18,7 +18,7 @@
  *
  * ## Why the projection is orthogonal
  *
- * CHAPAEV-PLAN.md §2 cancels the isometry inherited from the draughts project, and the first
+ * GAME-PLAN.md §2 cancels the isometry inherited from the draughts project, and the first
  * reason is the one that matters here: in a diamond the relationship between a drag on screen and a
  * direction on the board is non-linear across the field, and in this game the player's entire skill
  * IS that direction. Second, distance-to-edge — the thing every shot is judged by — reads
@@ -154,7 +154,7 @@ export interface BoardFit {
 /**
  * Fit the board into `viewportW × viewportH`.
  *
- * There is no zoom floor, no overflow mode and no pan (CHAPAEV-PLAN.md §2, trap 4): a square board
+ * There is no zoom floor, no overflow mode and no pan (GAME-PLAN.md §2, trap 4): a square board
  * binds on the viewport's SHORTER side, which on the target phone is 390px in both orientations, so
  * 8×8 lands at a 46.75px tile in portrait AND landscape and always fits whole. That is what lets
  * the aim gesture own the single-finger drag outright — with no pan to disambiguate it from, a drag

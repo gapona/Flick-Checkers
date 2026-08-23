@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // How long one `runToRest()` costs on a full 16-disc board.
 //
-// CHAPAEV-PLAN.md §11, item 2, asks for this number BEFORE S7 and says why: the bot (§6) and the
+// GAME-PLAN.md §11, item 2, asks for this number BEFORE S7 and says why: the bot (§6) and the
 // daily-puzzle generator (§7) are both "run this a few hundred times", so whether either is
 // affordable is entirely a function of this measurement. §6 estimates ~0.2s for a 600-candidate
 // Hard search from a paper count of ~35M pair checks. That estimate is what this replaces.

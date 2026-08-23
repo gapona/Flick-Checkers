@@ -194,7 +194,7 @@ function gearAt(game: GamePage, sceneKey: string): Promise<{ x: number; y: numbe
  * back while a gesture is held, which is the state this file exists to check and the state no test
  * had ever been in.
  */
-async function holdAim(game: GamePage, sceneKey: 'Game' | 'Daily' = 'Game'): Promise<void> {
+async function holdAim(game: GamePage, sceneKey: 'Game' | 'Daily' | 'Tutorial' = 'Game'): Promise<void> {
   const disc = await game.page.evaluate((key: string) => {
     const scene = window.__game!.scene.getScene(key) as unknown as {
       sim: { discs: { x: number; y: number; side: string; alive: boolean }[] }
@@ -229,7 +229,7 @@ describe('the layout holds at every shape', () => {
       const game = await open(harness, { ...size, save: DEFAULT_SAVE })
       await game.page.waitForTimeout(500)
 
-      for (const screen of ['MainMenu', 'Modes', 'Shop'] as const) {
+      for (const screen of ['MainMenu', 'Modes', 'Shop', 'HowToPlay'] as const) {
         if (screen === 'Modes') {
           const menu = await buttonAt(game.page, 'MainMenu', 'newMatchButton')
           await game.click(menu.x, menu.y)
@@ -238,6 +238,13 @@ describe('the layout holds at every shape', () => {
         if (screen === 'Shop') {
           await game.page.evaluate(() => window.__game!.scene.getScene('Modes').scene.start('Shop', {}))
           await game.waitForScene('Shop')
+        }
+        // The rules page paints the same plate as the other two, from the same helper. It is here
+        // because the three that shipped the 4000x4000 bug were three copies of one line, and a
+        // fourth full-page screen is a fourth chance to write it again.
+        if (screen === 'HowToPlay') {
+          await game.page.evaluate(() => window.__game!.scene.getScene('Shop').scene.start('HowToPlay', {}))
+          await game.waitForScene('HowToPlay')
         }
         await game.page.waitForTimeout(500)
         const holes = await clearColourPixels(game)
@@ -312,7 +319,7 @@ describe('the layout holds at every shape', () => {
     await game.page.close()
   })
 
-  for (const size of [{ width: 320, height: 700 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 320, height: 700 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws every menu without overlaps at ${at}`, async () => {
@@ -354,6 +361,61 @@ describe('the layout holds at every shape', () => {
       await game.page.close()
     })
   }
+
+  for (const size of [{ width: 320, height: 700 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
+    const at = `${size.width}x${size.height}`
+
+    it(`draws the tutorial and the rules page without overlaps at ${at}`, async () => {
+      /**
+       * Both screens hang their content off `computeHudBands`/`contentColumn` rather than off a
+       * fixed number, and both were written after the three lists in this game were caught
+       * overrunning what sits below them in landscape. The tutorial is the sharper case: its coach
+       * block lives in the trailing band, which in landscape is the full-height strip the top bar's
+       * gear also crosses.
+       */
+      const game = await open(harness, { ...size, save: DEFAULT_SAVE })
+      await game.page.waitForTimeout(700)
+
+      const tutorial = await buttonAt(game.page, 'MainMenu', 'tutorialButton')
+      await game.click(tutorial.x, tutorial.y)
+      await game.waitForScene('Tutorial')
+      await game.page.waitForTimeout(700)
+      await assertLaidOut(game, `${at} Tutorial`)
+
+      // The hint is the longest copy either screen carries, and it is the state the block is at its
+      // tallest in — a layout checked only on the brief is a layout checked on its easy case.
+      await game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Tutorial') as unknown as { say(line: string): void; lesson: { hintKey: string } }
+        scene.say('A disc is out the moment its centre crosses the edge, and a miss at full power runs clean across the board.')
+      })
+      await game.page.waitForTimeout(300)
+      await assertLaidOut(game, `${at} Tutorial with a long hint`)
+
+      await game.page.evaluate(() => window.__game!.scene.getScene('Tutorial').scene.start('HowToPlay', {}))
+      await game.waitForScene('HowToPlay')
+      await game.page.waitForTimeout(700)
+      await assertLaidOut(game, `${at} HowToPlay`)
+
+      await game.page.close()
+    })
+  }
+
+  it('keeps the TUTORIAL covered while aiming too', async () => {
+    // A third copy of the aim-camera background arithmetic — `Game`'s, `Daily`'s, and now this one.
+    // Same reason the daily has this test: the copy must not be allowed to drift unnoticed.
+    const game = await open(harness, { width: 1400, height: 700, save: DEFAULT_SAVE })
+    const tutorial = await buttonAt(game.page, 'MainMenu', 'tutorialButton')
+    await game.click(tutorial.x, tutorial.y)
+    await game.waitForScene('Tutorial')
+    await game.page.waitForTimeout(900)
+    await holdAim(game, 'Tutorial')
+
+    const holes = await clearColourPixels(game)
+    await game.page.mouse.up()
+    assert.equal(holes.count, 0, `aiming in the tutorial leaves ${holes.count}px of bare canvas ${holes.box}`)
+
+    await game.page.close()
+  })
 
   it('draws the chrome icons rather than typing them', async () => {
     /**
@@ -444,7 +506,16 @@ describe('the layout holds at every shape', () => {
     await game.page.close()
   })
 
-  for (const size of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  /**
+   * **375x664 is the SHORT portrait phone, and it is here because of a real defect.**
+   *
+   * Every portrait viewport this file checked was tall — 390x844 and 320x700 are both about 2.2:1 —
+   * and a square board leaves the trailing band 235px on those. At 1.77:1 it leaves 152, against a
+   * HUD block that wants ~153: the two priced buttons hung a pixel off the bottom of the screen and
+   * the guided tour's ring around one of them was cut in half. Reported from a phone with a
+   * screenshot, which is the third time an aspect ratio nobody enumerated has been the bug.
+   */
+  for (const size of [{ width: 375, height: 664 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws the board's HUD without overlaps at ${at}`, async () => {
@@ -453,6 +524,31 @@ describe('the layout holds at every shape', () => {
       await waitForSettled(game.page)
       await game.page.waitForTimeout(500)
       await assertLaidOut(game, `${at} Game`)
+
+      /**
+       * And the two priced buttons keep real space between them and the screen edge.
+       *
+       * "Inside the viewport" is not enough here, which is exactly how the short-phone defect got
+       * past this file: the buttons overhung the bottom by 0.9px at 375x664, under `assertLaidOut`'s
+       * 1px tolerance, while the guided tour's ring around one of them — which stands 8px off
+       * whatever it rings — was visibly cut in half. A control flush with the edge is also a control
+       * a thumb has to aim at the bezel to press.
+       */
+      const edges = await game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Game') as unknown as {
+          retakeButton: { container: Phaser.GameObjects.Container }
+          powerButton: { container: Phaser.GameObjects.Container }
+        }
+        const of = (name: 'retakeButton' | 'powerButton') => {
+          const b = scene[name].container.getBounds()
+          return { name, bottom: b.y + b.height, top: b.y }
+        }
+        return { buttons: [of('retakeButton'), of('powerButton')], height: window.__game!.scale.height }
+      })
+      for (const button of edges.buttons) {
+        const clearance = edges.height - button.bottom
+        assert.ok(clearance >= 6, `${at}: ${button.name} ends ${clearance.toFixed(1)}px from the bottom of the screen`)
+      }
 
       // The two consumables were the last glyphs in the UI (`U+21A9`, `U+1F4A5`), and unlike every
       // other icon they sit INSIDE a label, beside the price they cost. They are frames now, drawn

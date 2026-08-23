@@ -1,5 +1,5 @@
 /**
- * The daily puzzle: **clear the board in one shot** (CHAPAEV-PLAN.md §7).
+ * The daily puzzle: **clear the board in one shot** (GAME-PLAN.md §7).
  *
  * **Pure TypeScript, no Phaser.** This is the chunk that pays for the deterministic solver more
  * directly than anything else in the project — §7's whole idea is that the layout is generated from

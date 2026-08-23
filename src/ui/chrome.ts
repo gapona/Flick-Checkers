@@ -202,6 +202,13 @@ export interface TopBarOptions {
   onSettings: () => void
 }
 
+/** See {@link TopBar.parts}. `null` means this layout does not carry that control at all. */
+export interface TopBarParts {
+  balance: Phaser.Geom.Rectangle | null
+  settings: Phaser.Geom.Rectangle
+  back: Phaser.Geom.Rectangle | null
+}
+
 export interface TopBar {
   /** Everything the bar draws — hand to `uiCamera`'s set and `cameras.main.ignore()`. */
   readonly objects: Phaser.GameObjects.GameObject[]
@@ -216,6 +223,17 @@ export interface TopBar {
    * layout is doing.
    */
   setBadgesVisible(visible: boolean): void
+  /**
+   * Where the bar's own controls currently are, in SCREEN px — for the guided tour's spotlight
+   * (`scenes/Coach.ts`), which needs a rectangle to cut a hole around.
+   *
+   * A method rather than a stored field, and rectangles rather than the objects themselves: a
+   * caller handed the gear's `GameButton` could also press it, and a caller handed a rectangle from
+   * the last layout would be pointing at where the bar used to be. Anything absent from this
+   * layout — the back button on the root scene, the badges in the side panel's — reports `null`
+   * rather than a zero box, so a caller cannot accidentally ring the top-left corner.
+   */
+  parts(): TopBarParts
   /** Total height the bar occupies, including the top inset — what a scene lays out beneath. */
   height(scene: Phaser.Scene): number
   layout(width: number, height: number): void
@@ -231,6 +249,9 @@ export interface TopBar {
  */
 export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBar {
   const objects: Phaser.GameObjects.GameObject[] = []
+  /** The badge's box as `drawBadge` last drew it — a `Graphics` keeps no bounds of its own, and
+   * {@link TopBar.parts} has to be able to answer where it is. */
+  const badgeBox = new Phaser.Geom.Rectangle()
 
   const badge = scene.add.graphics()
   const coins = scene.add.text(0, 0, '0', { fontFamily: getDisplayFontStack(), fontSize: BADGE_FONT_SIZE, color: BADGE_TEXT }).setOrigin(0, 0.5)
@@ -265,6 +286,7 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
     // frame) and never changes with `setDisplaySize`. Measuring with it made the badge three times
     // wider than its contents and pushed it under the round indicator.
     const w = coinIcon.displayWidth + coins.width + BADGE_PADDING_X * scale * 2 + 6 * scale
+    badgeBox.setTo(x, y - h / 2, w, h)
     badge.clear()
     badge.fillStyle(BADGE_FILL, 0.92)
     badge.fillRoundedRect(x, y - h / 2, w, h, BADGE_RADIUS * scale)
@@ -287,6 +309,19 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
       coinIcon.setVisible(visible)
       coins.setVisible(visible)
       round?.setVisible(visible)
+    },
+    parts() {
+      const boxOf = (button: GameButton): Phaser.Geom.Rectangle => {
+        // The CONTAINER's bounds, not the hit area's: `gameButton` pads every tap target out to 44
+        // units and a ring drawn around that padding stands away from the button it is ringing.
+        const bounds = button.container.getBounds()
+        return new Phaser.Geom.Rectangle(bounds.x, bounds.y, bounds.width, bounds.height)
+      }
+      return {
+        balance: badge.visible && badgeBox.width > 0 ? Phaser.Geom.Rectangle.Clone(badgeBox) : null,
+        settings: boxOf(gear),
+        back: back ? boxOf(back) : null,
+      }
     },
     height(host: Phaser.Scene) {
       return screenInsets(host).top + TOP_BAR_HEIGHT * uiScale(host.scale.width)

@@ -85,7 +85,7 @@ export class Preloader extends Phaser.Scene {
     // The whole sound set, Ogg Vorbis, ~124 KB together (CONCEPT.md §8/S10). All of it is loaded
     // here: a capture sound that arrives after the first capture is worse than no sound at all.
     for (const key of AUDIO_KEYS) this.load.audio(key, audioPath(key))
-    // The daily puzzles, generated and proved by `npm run daily` (CHAPAEV-PLAN.md §7). A few KB of
+    // The daily puzzles, generated and proved by `npm run daily` (GAME-PLAN.md §7). A few KB of
     // JSON, loaded up front rather than on demand: the Daily screen must open instantly, and a
     // "loading" state inside a one-shot puzzle would be absurd.
     this.load.json(DAILY_CATALOG_KEY, DAILY_CATALOG_PATH)

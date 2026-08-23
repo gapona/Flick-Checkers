@@ -11,7 +11,7 @@
  * - **At most one line per three shots**, counted in SHOTS rather than seconds, so the limit holds
  *   identically through the bot's fifth-of-a-second search and through a player who thinks for a
  *   minute before pulling the slingshot. Three rather than the five a grid game wants, because a
- *   Chapaev round is about ten shots end to end (`verify:bot` measures it): at five, a character
+ *   round is about ten shots end to end (`verify:bot` measures it): at five, a character
  *   would get two lines in a round and half of them would be the hello.
  * - **The loud moments get a SHORTER cooldown, not an exemption.** A disc leaving the board used to
  *   bypass the limit outright, and in a round where discs leave on most shots that is a character

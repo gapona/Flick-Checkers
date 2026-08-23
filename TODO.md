@@ -1,6 +1,6 @@
 # TODO / Backlog
 
-`CHAPAEV-PLAN.md` §10's chunk list is complete. What is left is the work the plan itself defers to
+`GAME-PLAN.md` §10's chunk list is complete. What is left is the work the plan itself defers to
 people rather than to code, plus one piece of infrastructure worth lifting when it is next needed.
 
 ## 1. The calibration pass — the measurable half is DONE
@@ -119,8 +119,8 @@ is this game's own set — five frames (`icon-coin`, `rim-strip`, `rim-corner`, 
 be atlas frames: they are recoloured per skin at runtime, and a baked colour sprite cannot take part
 in that.
 
-**What is still from draughts is the SOUND set**: `promote`, `capture`, `move` are used for their
-Chapaev roles with the mapping written down in `src/assets.ts`. Nothing is wrong at runtime — a cue
+**What is still from draughts is the SOUND set**: `promote`, `capture`, `move` are used for
+roles in THIS game with the mapping written down in `src/assets.ts`. Nothing is wrong at runtime — a cue
 plays correctly under a misleading name — so this is tidying. It costs a `scripts/make-audio.mjs`
 rename pass plus the `src/assets.ts` mapping, and needs `ffmpeg` with libvorbis on PATH, which is
 the only reason it has not happened.

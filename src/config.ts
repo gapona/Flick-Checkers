@@ -7,6 +7,9 @@ import { MainMenu } from './scenes/MainMenu'
 import { Daily } from './scenes/Daily'
 import { DailyResult } from './scenes/DailyResult'
 import { Game } from './scenes/Game'
+import { HowToPlay } from './scenes/HowToPlay'
+import { Coach } from './scenes/Coach'
+import { Tutorial } from './scenes/Tutorial'
 import { MatchResult } from './scenes/MatchResult'
 import { Modes } from './scenes/Modes'
 import { Opponents } from './scenes/Opponents'
@@ -35,7 +38,7 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
     // by default, which would report a two-finger fumble as a clean one-finger drag.
     activePointers: 2,
   },
-  // NO PHYSICS. Arcade was in the draughts config and CHAPAEV-PLAN.md §2 removes it deliberately —
+  // NO PHYSICS. Arcade was in the draughts config and GAME-PLAN.md §2 removes it deliberately —
   // this game runs its own solver in `src/sim/`, and the reasons are all disqualifying rather than
   // preferences:
   //   1. Tunnelling. A flick reaches ~15 cells/s; at 60Hz that is ~0.25 cells per frame against a
@@ -49,5 +52,5 @@ export const GameConfig: Phaser.Types.Core.GameConfig = {
   // to by the game. The conditional is what keeps it out of the shipped bundle: Vite substitutes
   // `import.meta.env.DEV` with `false` in a production build and Rollup drops the branch and, with
   // it, the only reference to the import.
-  scene: [Boot, Preloader, MainMenu, Game, Daily, DailyResult, MatchResult, Modes, Opponents, Settings, Shop, Confirm, ...(import.meta.env.DEV ? [UiStand] : [])],
+  scene: [Boot, Preloader, MainMenu, Game, Daily, DailyResult, MatchResult, Modes, Opponents, Settings, Shop, Confirm, Tutorial, HowToPlay, Coach, ...(import.meta.env.DEV ? [UiStand] : [])],
 }

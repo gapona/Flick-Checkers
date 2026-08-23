@@ -3,7 +3,7 @@
  *
  * **Pure TypeScript, no Phaser** — same rule as `game/rules.ts` and `src/sim/`. Every decision here
  * is a function of the rule flags plus what the last shot did, so the whole turn matrix of
- * CHAPAEV-PLAN.md §3 is enumerable under plain `node` (`npm run test:gameplay`).
+ * GAME-PLAN.md §3 is enumerable under plain `node` (`npm run test:gameplay`).
  *
  * It reads the board but never touches it: the solver owns where discs are, and this owns what that
  * means. The two meet in exactly one place — {@link resolveShot} takes a settled `SimState` and the
@@ -29,7 +29,7 @@
  *    at the end of the round could never fire.
  */
 import type { BoardMetrics } from '../board/layout'
-import type { ChapaevRules } from './rules'
+import type { RuleSet } from './rules'
 import { enemyKnockouts, ownKnockouts, type SimOutcome } from '../sim/outcome'
 import { liveDiscs, opposite, type Disc, type SimState, type Side } from '../sim/types'
 
@@ -122,7 +122,7 @@ export interface ShotResolution {
  * A shot from the side that is not to move is refused rather than trusted: it is always a caller
  * bug, and quietly accepting it would let a UI race hand a side two turns in a row.
  */
-export function resolveShot(round: RoundState, rules: ChapaevRules, state: SimState, metrics: BoardMetrics, outcome: SimOutcome): ShotResolution {
+export function resolveShot(round: RoundState, rules: RuleSet, state: SimState, metrics: BoardMetrics, outcome: SimOutcome): ShotResolution {
   const shooter = outcome.shooterSide
   if (round.winner || !shooter || shooter !== round.turn) {
     return { reason: round.winner ? 'roundOver' : 'sameTurn', turn: round.turn, shotsLeft: round.shotsLeft, winner: round.winner, knockouts: 0, ownLosses: 0 }
@@ -247,7 +247,7 @@ export interface RoundSummary {
 }
 
 /** The round's result, or `null` while it is still running. */
-export function summarise(round: RoundState, rules: ChapaevRules): RoundSummary | null {
+export function summarise(round: RoundState, rules: RuleSet): RoundSummary | null {
   if (!round.winner) return null
 
   const loser = opposite(round.winner)

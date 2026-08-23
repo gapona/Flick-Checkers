@@ -2,7 +2,7 @@
 /**
  * Do the five branches of arms actually differ, or is it one game with a different sticker?
  *
- * `CHAPAEV-PLAN.md` §4 claims "five perceptibly different rounds out of one mass number and one
+ * `GAME-PLAN.md` §4 claims "five perceptibly different rounds out of one mass number and one
  * friction number". That claim had never been measured: it rests on the numbers in the table being
  * *written* differently, not on the difference reaching the player's hand. The range is narrow —
  * mass 0.7…2.5, friction ×0.85…×1.3 — and could sit entirely inside what nobody can feel.

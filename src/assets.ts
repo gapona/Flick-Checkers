@@ -7,7 +7,7 @@ import type * as Phaser from 'phaser'
  *
  * Loaded by `scenes/Preloader.ts`; regenerate the files themselves with `npm run assets`.
  *
- * **State of the art as of S1** (CHAPAEV-PLAN.md §10): the committed atlas and sound set are the
+ * **State of the art as of S1** (GAME-PLAN.md §10): the committed atlas and sound set are the
  * ones carried over from the draughts project, and they are the draughts SHAPES — 1.6:1 ellipses
  * with a crown's headroom reserved above them, tile frames drawn for a checkerboard. S12b
  * regenerates them for this game (round discs, a separate shadow frame, a gloss highlight, the
@@ -80,7 +80,7 @@ export const MASCOT_BLINK_PATH = 'mascot-blink.webp'
  *
  * Keys and file stems are the same string, so `Preloader` loads them in one loop — which is why
  * the S1 cue names below are still the draughts ones: renaming a key here without regenerating the
- * files would be a build-green, silence-in-game bug. The Chapaev role each cue plays today is in
+ * files would be a build-green, silence-in-game bug. The role each cue plays in this game today is in
  * its comment, and S10 (§9) renames key and file together:
  *
  *   move -> shot, capture -> impact (volume/pitch from collision energy), promote -> knockout,
@@ -117,7 +117,7 @@ export function audioPath(key: string): string {
  * two SIDES, named for the one thing that is identical in every skin — one side is always the
  * light one, the other always the dark one.
  *
- * `king*` are the draughts crowned pieces. Chapaev has no promotion, but it does have §4's branch
+ * `king*` are the draughts crowned pieces. This game has no promotion, but it does have §4's branch
  * of arms: a heavier disc with a "floor" on top (the artillery's gun, the tank's turret). S12b
  * repoints these two slots at that, which is why they are kept rather than deleted — the atlas,
  * the generator and the naming convention all already handle "a second sprite per side".
@@ -162,6 +162,14 @@ export const ATLAS_FRAMES = {
   shop: 'icon-shop',
   modes: 'icon-modes',
   gear: 'icon-gear',
+  /**
+   * The guided tour's pointing hand (`scenes/Coach.ts`), tinted gold at the call site.
+   *
+   * Its FINGERTIP is at (0.43, 0.02) of the frame, which is the origin the coach sets on it: the
+   * tip has to land on the control being explained, not the sprite's middle. Drawn at 96 rather
+   * than the other icons' 64 because it is the only one shown at ~56px.
+   */
+  hand: 'icon-hand',
   /** The two consumables, on their HUD buttons — a mark beside the price it costs. */
   retake: 'icon-retake',
   power: 'icon-power',
@@ -176,7 +184,7 @@ export const ATLAS_FRAMES = {
  *
  * `PIECE_FRAME_SIZE`, `PIECE_DISC_FRACTION` and `pieceAnchorY()` all existed to reconcile the game
  * with an atlas frame that reserved headroom above the disc for a CROWN — draughts geometry, in a
- * game with no kings and no isometry (CHAPAEV-PLAN.md §2). Nothing read them.
+ * game with no kings and no isometry (GAME-PLAN.md §2). Nothing read them.
  *
  * The note they carried was that the shadow must become its own frame with its own offset, because
  * a shadow baked into the disc flies along with a struck piece. That is done, and it is done in

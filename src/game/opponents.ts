@@ -18,7 +18,7 @@
  *
  * ## What actually varies, and what deliberately does not
  *
- * CHAPAEV-PLAN.md §6's rule survives intact and is the reason this works at all: **difficulty is not
+ * GAME-PLAN.md §6's rule survives intact and is the reason this works at all: **difficulty is not
  * different logic, it is noise.** Every character runs the same search over the same candidates and
  * picks the same way. What a row may change is only:
  *
@@ -57,9 +57,9 @@ const DEGREE = Math.PI / 180
  * The ten moments a character can speak at. Every character carries an entry for each, with several
  * alternatives — `npm run verify:content` enforces both, so nobody can ship half-mute.
  *
- * These are Chapaev's moments, not a port of another game's: the two that carry this game
+ * These are THIS game's moments, not a port of another game's: the two that carry this game
  * specifically are {@link SpeechLines.onOwnBlunder} (it shot one of its OWN discs off the board,
- * which is the defining Chapaev disaster and has no equivalent in a game played on a grid) and
+ * which is this game’s defining disaster and has no equivalent in a game played on a grid) and
  * {@link SpeechLines.onOwnCombo} (§5's multiplier moment).
  */
 export interface SpeechLines {
@@ -83,7 +83,7 @@ export interface SpeechLines {
   onOwnKnockout: string[]
   /** It knocked two or more off in one shot. */
   onOwnCombo: string[]
-  /** It knocked one of its OWN discs off — the Chapaev disaster. */
+  /** It knocked one of its OWN discs off — the disaster this whole game turns on. */
   onOwnBlunder: string[]
   /** You knocked one of its discs off. */
   onPlayerKnockout: string[]

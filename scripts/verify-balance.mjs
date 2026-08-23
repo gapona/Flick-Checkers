@@ -18,7 +18,7 @@
  *
  * ## What the numbers are for
  *
- * `CHAPAEV-PLAN.md` §3 records why this is worth fixing at all, and it is not "fairness against the
+ * `GAME-PLAN.md` §3 records why this is worth fixing at all, and it is not "fairness against the
  * bot" — against the bot the first move is a difficulty knob. It is the daily puzzle, `sendScore()`
  * and any future PvP. Read that section before acting on a number from here.
  *
