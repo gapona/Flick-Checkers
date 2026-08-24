@@ -86,9 +86,10 @@ kinds of thing and are documented separately for that reason.
   whose numbers point the way its order claims; the unlock gate opens exactly one rung at a time;
   the speech director's two-tier cooldown and its per-trigger rotation behave; **every quirk a
   character states measurably changes what the search looks at**, compared against the same
-  character with its quirks stripped; and the BUILT `voice.json` carries exactly the markers
-  `audio/voiceRegistry.ts` names, in both directions. Cheap — no solver, no browser — so it IS in
-  `npm test`. See "The Opponents".
+  character with its quirks stripped; **no spoken line is long enough to wrap onto a third line**
+  (the HUD reserves two, with the priced buttons directly under them — see "They talk"); and the
+  BUILT `voice.json` carries exactly the markers `audio/voiceRegistry.ts` names, in both directions.
+  Cheap — no solver, no browser — so it IS in `npm test`. See "The Opponents".
   the tiles stay a ruler (~2:1 light-to-dark), nothing on the board out-shines a disc, and the two
   sides survive greyscale. Cheap, so it IS in `npm test`. See "Skins".
 - `npm run test:platform` — **the browser suite**: `node --test` driving `playwright-core` against a
@@ -118,6 +119,23 @@ kinds of thing and are documented separately for that reason.
   deliberately does NOT compare: **hit areas**. `ensureMinHitArea` pads every tap target to 44px on
   purpose, so those boxes overlap their neighbours by design — the first version of this file
   reported 48 findings and every one of them was correct behaviour.
+
+  **A button is measured by its PLATE, and it took a bug to get there.** `gameButton` draws its face
+  with a `Graphics` (no `getBounds`, so it can never be emitted from the display list) and takes its
+  taps through a zero-alpha `Rectangle` (skipped as an invisible hit proxy) — so walking the tree
+  found only the LABEL, and a label reaches nowhere near its own button's left and right thirds.
+  Anything overlapping a button THERE passed, which is how the mascot came to be drawn through the
+  Daily button on three portrait shapes while every case in this file was green. `drawnBoxes` now
+  scans each scene's own FIELDS for anything shaped like a `GameButton` — a plain object owning a
+  container, so it exists nowhere Phaser can be asked about it — and emits that container at the
+  button's real width and height. Negative-controlled: reverting the mascot fix now fails the
+  ordinary `draws every menu without overlaps at 375x664`, where before it failed nothing.
+
+  **The viewport lists are the mobile shapes, and 360x640 is the canonical 9:16.** Every case here
+  runs it, alongside 320x700 (2.19:1), 375x664 (1.77:1), 390x844 (2.16:1) and the two landscapes.
+  A sweep of twelve mobile shapes — the 9:16 family 320x568 / 360x640 / 375x667 / 405x720 / 414x736 /
+  450x800 / 540x960 plus the tall and short ones — across every screen, in **both locales**, found
+  nothing beyond the mascot; the four in the lists are the shapes that have each caught something.
 
   **It exists because of one bug and it reproduces that bug on demand.** The rival popup's answers
   both bailed out on a flag a queued `RESUME` had not cleared yet, so the game could not be started
@@ -414,6 +432,21 @@ Phaser 4 game client bundled with Vite. `tsconfig.json` uses `noEmit: true` — 
   picture, so a bubble level with it reaches across a hand's width of empty background and reads as
   belonging to nobody. Measured over every line x nine viewports from 320x700 to 1920x900: zero
   overlaps with any button, zero off-screen, worst clearance 8px (the margin itself).
+  **And the CHARACTER itself keeps the same clearance, which took a second pass to arrive at**
+  (`MainMenu.layoutMascot`, `MASCOT_BUTTON_GAP`). All that care went into the bubble while the sprite
+  under it was drawn straight through the Daily button on every short portrait phone — measured, it
+  crossed by 26px at 320x568, 23px at 360x640 and 25px at 375x664. The cause is the sizing rule:
+  0.3 of the SHORTER side is the width on any phone taller than it is wide, so the character is the
+  same 96-115px whether the band under the column is 170px or 70px. It is now capped against the
+  lowest button and **the character is what gives way** — the same rule that drops the wordmark when
+  the column will not fit, since a decoration must never be drawn over a control. Two halves of that
+  are load-bearing: the cap applies only when the character actually stands UNDER the column (in
+  landscape the stack is off to the right, and capping there would shrink a character nothing is near),
+  and it is placed AFTER the stack has been laid out, because where it may stand depends on where the
+  lowest button ended up. That reordering also fixed the bubble's own floor test, which had been
+  reading the PREVIOUS pass's button positions. Below `MASCOT_MIN_SHRINK` of its wanted height the
+  character is hidden rather than drawn as a smudge; no targeted viewport reaches that (the worst is
+  0.66 at 320x568), and `tests/platform/layout.test.ts` asserts it does not.
 - `src/game/mascotChat.ts` — **what it says when poked, and how fast it tires of it.** Pure policy
   and content, no Phaser, so `verify:content` exercises the escalation in plain Node.
   - **The joke is the ESCALATION, not the lines.** One pool answers the first poke well and the
@@ -1548,6 +1581,14 @@ Three modules, split the way the audio layer already is — policy, view, output
   line lives in the HUD band under the status. Note `stop()` versus `hide()` — Phaser's
   `DisplayList` destroys every game object on `SHUTDOWN` *before* a scene's own handler runs, so
   `setText()` from a shutdown path throws and takes the whole game down with it.
+  **The row holds exactly TWO lines and nothing used to say so.** It is reserved rather than
+  measured — which is right, since the priced buttons under it must not jump every time a character
+  speaks — and that makes the overflow silent: a line that wraps to three is drawn over those two
+  buttons, on every phone at once. Measured in a real browser, two lines hold up to **58**
+  characters and **63** is three; both numbers are the same at 320x568 and at 430x932, because the
+  wrap width and the font size both come off `uiScale`, so a CHARACTER budget is viewport-independent
+  and can be enforced in plain Node. `verify:content` does, at 56, against a cast whose longest line
+  is 47.
 - **`audio/dialogueVoice.ts`** + **`audio/voiceRegistry.ts`** + `make-voice.py` are the pseudo-voice
   — gibberish speech in the Animal Crossing / Graveyard Keeper manner. **It plays wherever a
   character speaks**: the board, the opponent picker on a tap, and the menu mascot on a poke, the
@@ -3058,6 +3099,16 @@ mechanism each one describes is unchanged.
 
 App bugs:
 
+- **The menu mascot was drawn under the lowest button on every short portrait phone.** Reported from
+  a device, not measured into existence: the sprite crossed the Daily button by 26px at 320x568, 24px
+  at 360x640 and 25px at 375x664. It is sized at 0.3 of the viewport's SHORTER side, which on any
+  phone taller than it is wide is the WIDTH — so the character is the same 96-115px whether the band
+  under the button column is 170px or 70px, and the three shapes where the stack comes down to meet
+  it were the three that broke. It now shrinks to clear the lowest button, on the rule that the
+  decoration gives way rather than the control. **The general overlap check could not have caught
+  it** — see `test:platform`'s note on button faces — so the mascot has a case of its own, negative-
+  controlled: reverting the fix fails exactly the three short shapes and leaves the other three
+  passing. → "Responsive Layout", `MainMenu.layoutMascot`, `tests/platform/layout.test.ts`
 - **Starting an aim tore the background open on one side, and pushed the board under the panel.**
   The world camera's focus carries the side panel's shift, which is a SCREEN-px offset and therefore
   a different number of world units at every zoom — and the two aim-camera moves centred on the bare

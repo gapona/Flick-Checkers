@@ -96,6 +96,39 @@ for (const one of OPPONENTS) {
 checks++
 console.log(`  ok - all ${OPPONENTS.length} characters carry ${SPEECH_TRIGGERS.length} triggers, 2+ distinct lines each`)
 
+/**
+ * **No bark may be long enough to wrap onto a THIRD line**, because the HUD reserves two.
+ *
+ * `Game`'s speech row is a fixed height (`SPEECH_ROW_HEIGHT`, derived from the font to hold two
+ * lines) with the two priced buttons directly under it — so a line that wraps to three is drawn
+ * over controls, on every phone at once. Nothing said so: the row is reserved rather than measured,
+ * which is right (the buttons must not jump when a character speaks) and means the overflow is
+ * silent.
+ *
+ * **The budget is in CHARACTERS and that is viewport-independent, which is the non-obvious part.**
+ * The wrap width and the font size both come off `uiScale`, so the number of characters that fit on
+ * a line is the same on a 320px phone as on a 430px one — measured in a real browser at 320x568,
+ * 360x640 and 390x844, all three turn the third line on at the same length. Two lines hold up to
+ * **58** characters; **63** is three everywhere. The limit here is 56, below the measured cliff
+ * rather than at it, and the longest line the cast currently carries is 47.
+ *
+ * A character count is a proxy for a width and cannot be exact — a line of capitals and one of
+ * lowercase differ — but 56 is far enough under the cliff to absorb that, and the alternative
+ * (rendering every line in a headless browser) does not belong in `npm test`.
+ */
+{
+  const LINE_BUDGET = 56
+  const spoken = OPPONENTS.flatMap((one) => SPEECH_TRIGGERS.flatMap((trigger) => one.lines[trigger].map((line) => ({ id: one.id, trigger, line }))))
+  const over = spoken.filter((entry) => entry.line.length > LINE_BUDGET)
+  const longest = spoken.reduce((worst, entry) => (entry.line.length > worst.line.length ? entry : worst), spoken[0])
+  ok(
+    over.length === 0
+      ? `every one of the ${spoken.length} spoken lines fits the HUD's two-line row (longest ${longest.line.length}/${LINE_BUDGET}, ${longest.id}'s ${longest.trigger})`
+      : `${over.length} spoken lines would wrap onto a third line and cover the consumable buttons — ${over.map((e) => `${e.id}/${e.trigger} (${e.line.length})`).join(', ')}`,
+    over.length === 0,
+  )
+}
+
 // The ladder is fixed by character rather than by measurement (see the file's own note), but the
 // numbers still have to point the same way the order does — a character that considers FEWER shots
 // than the one before it while claiming to be harder is a row somebody edited without reading.

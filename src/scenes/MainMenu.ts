@@ -47,6 +47,25 @@ const TITLE_SIDE_MARGIN = 24
 const MASCOT_HEIGHT = 0.3
 const MASCOT_MARGIN = 12
 const MASCOT_COLUMN_GAP = 16
+/**
+ * The clearance the character keeps from the lowest button, and how far it may be shrunk to find it.
+ *
+ * **A short portrait phone does not have room for both**, and it was drawing them on top of each
+ * other: 0.3 of the shorter side is sized off the WIDTH on any phone taller than it is wide, so the
+ * character is the same 96-115px whether the band under the column is 170px or 70px. Measured, the
+ * sprite crossed the Daily button by 26px at 320x568, 23px at 360x640 and 25px at 375x664 — the
+ * three shapes where the stack, centred in a short band, comes down to meet it.
+ *
+ * **The character is what gives way**, on the same rule that drops the wordmark when the column
+ * still does not fit: the row that carries no function goes first, and a decoration must never be
+ * drawn over a control. It shrinks only as far as the band demands, and only when it is actually
+ * under the column — in landscape the stack is off to the right and the two never meet, so nothing
+ * moves there. Below {@link MASCOT_MIN_SHRINK} of its wanted height it is hidden outright rather
+ * than drawn as a smudge; no viewport this game targets reaches that, which is what makes it a last
+ * resort rather than a layout.
+ */
+const MASCOT_BUTTON_GAP = 8
+const MASCOT_MIN_SHRINK = 0.55
 const MASCOT_SPEECH_FONT_SIZE = 15
 /** Between the tail's tip and the character it points at. */
 const MASCOT_BUBBLE_GAP = 8
@@ -396,7 +415,9 @@ export class MainMenu extends Phaser.Scene {
    * connected anyway. Redrawn only as the line types, and as `layout()` moves things.
    */
   private drawMascotBubble(): void {
-    if (!this.mascotSpeech.line) {
+    // A screen too short to draw the character is a screen with nobody to speak, and a bubble with
+    // no speaker under it reads as a stray plate — see {@link MASCOT_BUTTON_GAP}.
+    if (!this.mascotSpeech.line || !this.mascot.image.visible) {
       this.mascotBubble.hide()
       return
     }
@@ -478,34 +499,10 @@ export class MainMenu extends Phaser.Scene {
     // The title is positioned at the very end, once the column below it has been measured — see
     // `fitColumn` at the bottom of this method.
 
-    // Sized off the SHORTER side, like the drifting discs, so it neither dominates a phone nor
-    // shrinks to a sticker on a desktop. Sat on the nav bar's top edge.
-    const mascotHeight = Math.min(width, height) * MASCOT_HEIGHT
-    this.mascot.setHeight(mascotHeight)
-    const mascotWidth = this.mascot.width
-
-    // **Anchored to the button column, not to the screen edge**, which is one rule that gives the
-    // right answer on both shapes. `contentColumn` is capped at 720, so on a wide desktop the
-    // column is centred with hundreds of px of empty margin either side and pinning the mascot to
-    // the far left left it marooned in a corner; parking it just outside the column instead brings
-    // it in beside the buttons. On a phone the column already spans the viewport, the subtraction
-    // goes negative, and the clamp puts it back against the edge — which is where it belongs there.
-    const columnLeft = (width - contentColumn(width)) / 2
-    const mascotX = Math.max(MASCOT_MARGIN * scale, columnLeft - MASCOT_COLUMN_GAP * scale - mascotWidth)
-    this.mascot.setRest(mascotX, height - bottom - MASCOT_MARGIN * scale)
-
-    // Wrapped to a column a bit wider than the character, so a two-line quip still reads as coming
-    // from the face under it rather than from the screen edge.
-    this.mascotBubble.setMetrics(
-      MASCOT_SPEECH_FONT_SIZE * scale,
-      Math.min(width - 32 * scale, Math.max(mascotWidth * 1.6, 180 * scale)),
-    )
-    this.drawMascotBubble()
-    // The hit area follows the drawn size, and it has to be re-set rather than re-`setInteractive`d
-    // — calling that again only re-enables input, it does not recompute the geometry (CLAUDE.md
-    // "Responsive Layout", gotcha #2).
-    const area = this.mascot.image.input?.hitArea as Phaser.Geom.Rectangle | undefined
-    area?.setTo(0, 0, this.mascot.image.width, this.mascot.image.height)
+    // The mascot is placed AFTER the stack, at the bottom of this method: where it may stand
+    // depends on where the lowest button ended up, and that is not known until the band has been
+    // solved. It used to be laid out here, above the stack, which is also why the bubble's own
+    // floor test was reading the PREVIOUS pass's button positions.
 
     // Order is reading order and it is the stack's order: continue or start, then learn, then the
     // daily. The bubble's floor test below reads the SAME array, which is why both places build it
@@ -581,5 +578,61 @@ export class MainMenu extends Phaser.Scene {
       button.layout(width / 2, offset, buttonScale)
       offset += step
     }
+
+    this.layoutMascot(width, height, scale, bottom, buttons)
+  }
+
+  /**
+   * The character, its bubble's metrics and its hit area — placed against the button stack, so it
+   * runs after the stack has been laid out.
+   *
+   * Sized off the SHORTER side, like the drifting discs, so it neither dominates a phone nor shrinks
+   * to a sticker on a desktop, and sat on the nav bar's top edge — then capped so it never reaches
+   * the buttons. See {@link MASCOT_BUTTON_GAP} for why the cap is needed and why the character is
+   * what gives way.
+   */
+  private layoutMascot(width: number, height: number, scale: number, bottom: number, buttons: GameButton[]): void {
+    const wanted = Math.min(width, height) * MASCOT_HEIGHT
+
+    // **Anchored to the button column, not to the screen edge**, which is one rule that gives the
+    // right answer on both shapes. `contentColumn` is capped at 720, so on a wide desktop the
+    // column is centred with hundreds of px of empty margin either side and pinning the mascot to
+    // the far left left it marooned in a corner; parking it just outside the column instead brings
+    // it in beside the buttons. On a phone the column already spans the viewport, the subtraction
+    // goes negative, and the clamp puts it back against the edge — which is where it belongs there.
+    const columnLeft = (width - contentColumn(width)) / 2
+    const restX = (mascotWidth: number): number =>
+      Math.max(MASCOT_MARGIN * scale, columnLeft - MASCOT_COLUMN_GAP * scale - mascotWidth)
+
+    const feet = height - bottom - MASCOT_MARGIN * scale
+    const gap = MASCOT_BUTTON_GAP * scale
+
+    // Only a character that stands UNDER the column can be crossed by it. In landscape the stack is
+    // off to the right with the whole left of the screen to itself, and capping it there would
+    // shrink a character nothing is near.
+    this.mascot.setHeight(wanted)
+    const stackLeft = buttons.reduce((left, button) => Math.min(left, button.container.x - button.width / 2), width)
+    const under = restX(this.mascot.width) + this.mascot.width + gap > stackLeft
+    const room = buttons.reduce((low, button) => Math.max(low, button.container.y + button.height / 2), 0)
+
+    const capped = under ? Math.min(wanted, feet - room - gap) : wanted
+    this.mascot.image.setVisible(capped >= wanted * MASCOT_MIN_SHRINK)
+    this.mascot.setHeight(Math.max(capped, wanted * MASCOT_MIN_SHRINK))
+
+    const mascotWidth = this.mascot.width
+    this.mascot.setRest(restX(mascotWidth), feet)
+
+    // Wrapped to a column a bit wider than the character, so a two-line quip still reads as coming
+    // from the face under it rather than from the screen edge.
+    this.mascotBubble.setMetrics(
+      MASCOT_SPEECH_FONT_SIZE * scale,
+      Math.min(width - 32 * scale, Math.max(mascotWidth * 1.6, 180 * scale)),
+    )
+    this.drawMascotBubble()
+    // The hit area follows the drawn size, and it has to be re-set rather than re-`setInteractive`d
+    // — calling that again only re-enables input, it does not recompute the geometry (CLAUDE.md
+    // "Responsive Layout", gotcha #2).
+    const area = this.mascot.image.input?.hitArea as Phaser.Geom.Rectangle | undefined
+    area?.setTo(0, 0, this.mascot.image.width, this.mascot.image.height)
   }
 }

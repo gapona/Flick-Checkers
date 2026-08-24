@@ -71,6 +71,15 @@ interface DrawnBox {
  * Every DRAWN control and label on every active scene, as screen rectangles, each already clipped
  * to the camera that renders it — a scroll region owns its viewport, so content beyond it is not on
  * screen however far its world bounds reach.
+ *
+ * **A button is measured by its PLATE, which has to be found the long way round.** `gameButton`
+ * draws its face with a `Graphics` (no `getBounds`, so it can never be emitted from the display
+ * list) and takes its taps through a zero-alpha `Rectangle` (skipped below as an invisible hit
+ * proxy), so walking the tree finds only the LABEL — and a button's label reaches nowhere near its
+ * own left and right thirds. That blind spot is not theoretical: the menu mascot was drawn through
+ * the Daily button on three portrait shapes while every case in this file was green. So the scenes'
+ * own fields are scanned first for anything shaped like a `GameButton`, and its container is then
+ * emitted at the button's real width and height instead of being descended into.
  */
 function drawnBoxes(game: GamePage): Promise<{ vw: number; vh: number; out: DrawnBox[] }> {
   return game.page.evaluate(() => {
@@ -78,37 +87,87 @@ function drawnBoxes(game: GamePage): Promise<{ vw: number; vh: number; out: Draw
     const vw = phaser.scale.width
     const vh = phaser.scale.height
     const out: DrawnBox[] = []
+
+    // Fields only, never the display list: a `GameButton` is a plain object that OWNS a container,
+    // so it exists nowhere Phaser can be asked about it.
+    const isGameObject = (v: any): boolean => Boolean(v) && typeof v === 'object' && typeof v.setActive === 'function' && 'type' in v
+    const isButton = (v: any): boolean =>
+      Boolean(v) && typeof v === 'object' && !isGameObject(v) && v.container && v.hitArea &&
+      typeof v.width === 'number' && typeof v.height === 'number' && typeof v.layout === 'function'
+    const ENGINE = new Set([
+      'sys', 'game', 'anims', 'cache', 'registry', 'sound', 'textures', 'events', 'cameras', 'scene',
+      'add', 'make', 'scale', 'plugins', 'input', 'load', 'tweens', 'time', 'data', 'children',
+      'physics', 'lights', 'renderer',
+    ])
+    const plates = new Map<unknown, { w: number; h: number; name: string }>()
+    const seen = new Set<unknown>()
+    const scan = (obj: any, depth: number, path: string): void => {
+      if (!obj || typeof obj !== 'object' || depth > 4 || seen.has(obj)) return
+      seen.add(obj)
+      let keys: string[] = []
+      try { keys = Object.keys(obj) } catch { return }
+      for (const key of keys) {
+        if (ENGINE.has(key)) continue
+        let value: any
+        try { value = obj[key] } catch { continue }
+        if (!value || typeof value !== 'object') continue
+        const here = `${path}.${key}`
+        if (isButton(value)) { plates.set(value.container, { w: value.width, h: value.height, name: key }); continue }
+        if (Array.isArray(value)) {
+          value.forEach((entry: any, index: number) => {
+            if (isButton(entry)) plates.set(entry.container, { w: entry.width, h: entry.height, name: `${key}[${index}]` })
+            else if (!isGameObject(entry)) scan(entry, depth + 1, `${here}[${index}]`)
+          })
+          continue
+        }
+        if (isGameObject(value)) continue
+        scan(value, depth + 1, here)
+      }
+    }
+    for (const scene of phaser.scene.getScenes(true)) scan(scene, 0, scene.scene.key)
+
     for (const scene of phaser.scene.getScenes(true)) {
       for (const camera of scene.cameras.cameras) {
-        const emit = (obj: any): void => {
-          if (typeof obj.getBounds !== 'function') return
-          const b = obj.getBounds()
-          if (b.width <= 0 || b.height <= 0) return
+        const push = (label: string, wx: number, wy: number, ww: number, wh: number): void => {
           const view = camera.worldView
           const zoom = camera.zoom
-          const x = camera.x + (b.x - view.x) * zoom
-          const y = camera.y + (b.y - view.y) * zoom
+          const x = camera.x + (wx - view.x) * zoom
+          const y = camera.y + (wy - view.y) * zoom
           const x0 = Math.max(x, camera.x)
           const y0 = Math.max(y, camera.y)
-          const x1 = Math.min(x + b.width * zoom, camera.x + camera.width)
-          const y1 = Math.min(y + b.height * zoom, camera.y + camera.height)
+          const x1 = Math.min(x + ww * zoom, camera.x + camera.width)
+          const y1 = Math.min(y + wh * zoom, camera.y + camera.height)
           if (x1 <= x0 || y1 <= y0) return
           // A full-bleed backdrop is not furniture and covering everything is its job.
           if ((x1 - x0) * (y1 - y0) >= vw * vh * 0.85) return
           out.push({
             scene: scene.scene.key,
-            label: obj.type === 'Text' ? JSON.stringify(String(obj.text).slice(0, 22)) : (obj.name || obj.type),
+            label,
             x: x0,
             y: y0,
             w: x1 - x0,
             h: y1 - y0,
-            off: x < -1 || y < -1 || x + b.width * zoom > vw + 1 || y + b.height * zoom > vh + 1,
+            off: x < -1 || y < -1 || x + ww * zoom > vw + 1 || y + wh * zoom > vh + 1,
           })
+        }
+        const emit = (obj: any): void => {
+          if (typeof obj.getBounds !== 'function') return
+          const b = obj.getBounds()
+          if (b.width <= 0 || b.height <= 0) return
+          push(obj.type === 'Text' ? JSON.stringify(String(obj.text).slice(0, 22)) : (obj.name || obj.type), b.x, b.y, b.width, b.height)
         }
         const walk = (obj: any): void => {
           if (!obj.visible || (obj.alpha ?? 1) < 0.05) return
           if ((obj.depth ?? 0) <= -1000) return
           if (obj.type === 'Zone') return
+          // The plate, at its real size, standing in for everything the button draws — see the
+          // header. Its own label and icon are inside it and are not emitted separately.
+          const plate = plates.get(obj)
+          if (plate) {
+            const m = obj.getWorldTransformMatrix()
+            push(plate.name, m.tx - plate.w / 2, m.ty - plate.h / 2, plate.w, plate.h)
+            return
+          }
           // An invisible hit proxy, not a drawn thing — see this file's header.
           if (obj.type === 'Rectangle' && (obj.fillAlpha === 0 || obj.isFilled === false)) return
           if (obj.type === 'Container') {
@@ -319,7 +378,7 @@ describe('the layout holds at every shape', () => {
     await game.page.close()
   })
 
-  for (const size of [{ width: 320, height: 700 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 320, height: 700 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws every menu without overlaps at ${at}`, async () => {
@@ -362,7 +421,63 @@ describe('the layout holds at every shape', () => {
     })
   }
 
-  for (const size of [{ width: 320, height: 700 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
+  /**
+   * **The mascot against the button column, and it needs its own check because `assertLaidOut`
+   * cannot see a button's FACE.**
+   *
+   * `gameButton` draws its plate with a `Graphics`, which has no `getBounds` and is therefore never
+   * emitted, and its hit proxy is a zero-alpha `Rectangle`, which this file skips on purpose. The
+   * only box a button contributes to the crossing test is its LABEL — so anything overlapping a
+   * button's left third, where no label reaches, passes. That is exactly where the mascot stood: it
+   * crossed the Daily button by 26px at 320x568, 23px at 360x640 and 25px at 375x664, on every build
+   * this file has ever checked.
+   *
+   * Short portrait shapes only, because that is what makes it happen: the character is sized off the
+   * viewport's SHORTER side, so it is the same height on a 568-tall phone as on an 844-tall one while
+   * the band under the column is 100px smaller. 360x640 is here and nowhere else in this file for the
+   * same reason 375x664 was added to the board's own case.
+   */
+  for (const size of [{ width: 320, height: 568 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 320, height: 700 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+    const at = `${size.width}x${size.height}`
+
+    it(`keeps the mascot clear of every menu button at ${at}`, async () => {
+      const game = await open(harness, { ...size, save: DEFAULT_SAVE })
+      await game.page.waitForTimeout(700)
+
+      const seen = await game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('MainMenu') as unknown as Record<string, any>
+        const b = scene.mascot.image.getBounds()
+        const buttons: { name: string; x: number; y: number; w: number; h: number }[] = []
+        for (const name of ['continueButton', 'newMatchButton', 'tutorialButton', 'dailyButton']) {
+          const button = scene[name]
+          if (!button) continue
+          buttons.push({ name, x: button.container.x - button.width / 2, y: button.container.y - button.height / 2, w: button.width, h: button.height })
+        }
+        return { visible: scene.mascot.image.visible as boolean, mascot: { x: b.x, y: b.y, w: b.width, h: b.height }, buttons }
+      })
+
+      // A hidden character is a legal answer on a screen with no room for one, and there would then
+      // be nothing to measure — but no viewport this game targets should reach it, so say so.
+      assert.ok(seen.visible, `${at}: the mascot is hidden, which no targeted viewport should need`)
+      assert.ok(seen.buttons.length > 0, `${at}: no menu buttons found to measure against`)
+
+      const m = seen.mascot
+      const crossed = seen.buttons
+        .map((b) => ({
+          b,
+          ox: Math.min(m.x + m.w, b.x + b.w) - Math.max(m.x, b.x),
+          oy: Math.min(m.y + m.h, b.y + b.h) - Math.max(m.y, b.y),
+        }))
+        .filter((hit) => hit.ox > 0 && hit.oy > 0)
+        .map((hit) => `${hit.b.name} by ${hit.ox.toFixed(1)}x${hit.oy.toFixed(1)}px`)
+
+      assert.deepEqual(crossed, [], `${at}: the mascot crosses ${crossed.join(', ')}`)
+
+      await game.page.close()
+    })
+  }
+
+  for (const size of [{ width: 320, height: 700 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws the tutorial and the rules page without overlaps at ${at}`, async () => {
@@ -515,7 +630,7 @@ describe('the layout holds at every shape', () => {
    * the guided tour's ring around one of them was cut in half. Reported from a phone with a
    * screenshot, which is the third time an aspect ratio nobody enumerated has been the bug.
    */
-  for (const size of [{ width: 375, height: 664 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws the board's HUD without overlaps at ${at}`, async () => {
