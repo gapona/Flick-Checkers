@@ -15,6 +15,33 @@ import { YTEvents } from './yt'
 const OVERLAY_SCENES = new Set(['Settings', 'MatchResult', 'DailyResult', 'Confirm', 'Opponents', 'Coach'])
 
 /**
+ * Raises a launched overlay above every other scene, so what it draws is actually seen.
+ *
+ * **This exists because of a shipped bug that made four screens unusable, and the cause is one every
+ * Phaser project meets exactly once.** `SceneManager.render()` walks `this.scenes` in FORWARD array
+ * order, which is the order `config.ts` registers them in — and `scene.launch()` does not touch that
+ * order. `Settings` sits at index 9 of that list; `Shop`, `Confirm`, `Tutorial`, `HowToPlay` and
+ * `Coach` all sit after it. So opening the settings panel from the shop, the tutorial or the rules
+ * page ran perfectly: the scene started, it paused its opener, it drew its panel — UNDERNEATH the
+ * opaque page that had launched it. From the outside the gear was a dead button, and the screen it
+ * was on was now frozen behind an invisible dialog. It was reported three separate ways
+ * ("при нажатии на настройки ничо не происходит"), and the tutorial's own Finish button — which
+ * raises `Confirm`, one index below `Tutorial` — was the fourth.
+ *
+ * **A scene's position in the registration array is a RENDERING decision, and no caller should have
+ * to know it.** Reordering `config.ts` would fix today's list and break silently the next time a
+ * screen is appended after an overlay, which is the natural place to append one. So the overlay
+ * asserts its own depth on the way up instead, from the same module that already owns the list of
+ * what an overlay IS — the two facts cannot drift apart when they are written down once.
+ *
+ * Safe to call unconditionally: `bringToTop` is idempotent, and the manager queues it when it is
+ * mid-pass rather than mutating the array it is iterating.
+ */
+export function raiseOverlay(scene: Phaser.Scene): void {
+  scene.scene.bringToTop()
+}
+
+/**
  * Freezes gameplay on `YTEvents.PAUSE` and unfreezes it on `YTEvents.RESUME` — the
  * certification requirement this was missing: `audio.ts` mutes/stops sound and
  * `store.ts` flushes the save on a platform pause, but until this module nothing ever

@@ -8,6 +8,7 @@ import { gameButton, type ButtonVariant, type GameButton } from '../ui/button'
 import { createOverlay, type Overlay } from '../ui/overlay'
 import { getTheme } from '../ui/theme'
 import { uiScale } from '../ui/uiScale'
+import { raiseOverlay } from '../platform/lifecycle'
 
 export interface ConfirmChoice {
   /** Already resolved through `t()` by the caller — see {@link ConfirmData.message}. */
@@ -74,6 +75,10 @@ export class Confirm extends Phaser.Scene {
   }
 
   create(data: ConfirmData) {
+    // Above every other scene, whatever order `config.ts` registered them in — see
+    // `raiseOverlay`, and the four dead buttons that came of not doing this.
+    raiseOverlay(this)
+
     this.openerKey = data.opener
     // Phaser re-uses the scene INSTANCE, and this one is raised from two places now — a stale array
     // would hand `panel.add` objects destroyed on the previous SHUTDOWN, which is the bug

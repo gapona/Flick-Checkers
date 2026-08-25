@@ -50,6 +50,7 @@ interface CoachState {
   hole: { x: number; y: number; width: number; height: number } | null
   next: { x: number; y: number; width: number; height: number }
   skip: { x: number; y: number; width: number; height: number }
+  back: { x: number; y: number; width: number; height: number }
   nextLabel: string
   handVisible: boolean
 }
@@ -65,6 +66,7 @@ const STATE = `(() => {
     hole: coach.holeRect,
     next: { x: coach.nextButton.container.x, y: coach.nextButton.container.y, width: coach.nextButton.width, height: coach.nextButton.height },
     skip: { x: coach.skipButton.container.x, y: coach.skipButton.container.y, width: coach.skipButton.width, height: coach.skipButton.height },
+    back: { x: coach.backButton.container.x, y: coach.backButton.container.y, width: coach.backButton.width, height: coach.backButton.height },
     nextLabel: coach.nextButton.text,
     handVisible: coach.hand.visible,
   }
@@ -120,6 +122,7 @@ async function walk(game: GamePage, viewport: { name: string; width: number; hei
     for (const [name, button] of [
       ['Next', state.next],
       ['Skip', state.skip],
+      ['Back', state.back],
     ] as const) {
       const box = { x: button.x - button.width / 2, y: button.y - button.height / 2, width: button.width, height: button.height }
       assert.ok(
@@ -184,6 +187,54 @@ test('and it does not on a board either, where the spotlights are a different sh
     assert.ok(spotlights >= 3, `${viewport.name}: only ${spotlights} steps of the match tour had a spotlight`)
     await game.page.close()
   }
+})
+
+/**
+ * A tour you cannot step back through is a tour you cannot re-read a card of, and it was reported as
+ * missing twice in one session. Back is DISABLED on the first card rather than absent, so the card's
+ * height — which is measured from what is in it — cannot change as the tour is walked.
+ */
+test('steps back through the cards, and cannot step off the front', async () => {
+  const game = await open(harness, { width: 360, height: 640, save: FRESH, expectScene: 'Coach' })
+  await game.page.waitForTimeout(400)
+
+  const first = await read(game)
+  assert.equal(first.step, 1)
+
+  // Off the front is a no-op, not a close — the tour has to still be there afterwards.
+  await game.click(first.back.x, first.back.y)
+  await game.page.waitForTimeout(250)
+  assert.equal((await read(game)).step, 1, 'Back on the first card moved somewhere')
+
+  await game.click(first.next.x, first.next.y)
+  await game.page.waitForTimeout(300)
+  const second = await read(game)
+  assert.equal(second.step, 2)
+
+  await game.click(second.back.x, second.back.y)
+  await game.page.waitForTimeout(300)
+  const returned = await read(game)
+  assert.equal(returned.step, 1, 'Back did not return to the previous card')
+  assert.equal(returned.title, first.title, 'the card came back with different copy')
+  await game.page.close()
+})
+
+/**
+ * The menu tour has to point at the LESSONS, and it did not — a player walked the whole guide, played
+ * a match, found the six lessons later by accident and reported that there was no way into them from
+ * it ("в нее не попасть из изначального гайда"). The step is conditional on the button existing,
+ * which on the save this tour runs against it always does.
+ */
+test('the menu tour offers the tutorial, on the second card', async () => {
+  const game = await open(harness, { width: 360, height: 640, save: FRESH, expectScene: 'Coach' })
+  await game.page.waitForTimeout(400)
+
+  const steps = await game.page.evaluate(() => {
+    const coach = window.__game!.scene.getScene('Coach') as unknown as { steps: { title: string }[] }
+    return coach.steps.map((step) => step.title)
+  })
+  assert.equal(steps[1], 'coachTutorialTitle', `the tutorial step is missing: ${steps.join(', ')}`)
+  await game.page.close()
 })
 
 test('walking to the end files the chapter, and a reload does not offer it again', async () => {

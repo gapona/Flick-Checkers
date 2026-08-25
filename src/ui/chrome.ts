@@ -2,7 +2,7 @@ import * as Phaser from 'phaser'
 import { ATLAS_FRAMES, ATLAS_KEY } from '../assets'
 import { bindAction } from '../platform/input'
 import { getDisplayFontStack } from './font'
-import { gameButton, type GameButton } from './button'
+import { buttonWidth, gameButton, type GameButton } from './button'
 import { SAFE_AREA_TOP_MARGIN_PX, SAFE_AREA_TOP_PORTRAIT_EXTRA_PX } from './safeArea'
 import { uiScale } from './uiScale'
 
@@ -252,6 +252,19 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
   /** The badge's box as `drawBadge` last drew it — a `Graphics` keeps no bounds of its own, and
    * {@link TopBar.parts} has to be able to answer where it is. */
   const badgeBox = new Phaser.Geom.Rectangle()
+  /**
+   * The last `layout()`'s geometry, kept so that CHANGING A NUMBER can re-place what that number
+   * sizes.
+   *
+   * **Both readouts in this bar are sized from their own content and neither was redrawn when the
+   * content changed.** `setCoins` writes the text and the plate stays the width it was drawn at;
+   * `setRound` writes `1 / 5` into a `Text` that was positioned while it was still EMPTY, so the
+   * pill was centred as if it were zero pixels wide and then grew symmetrically out of that centre
+   * — straight over the badge's right border once a balance reached four digits. That is the same
+   * defect as the status capsule drawn around the PREVIOUS status, one screen along: a plate fitted
+   * to text has to be refitted when the text moves.
+   */
+  const lastLayout = { width: 0, height: 0, laid: false }
 
   const badge = scene.add.graphics()
   const coins = scene.add.text(0, 0, '0', { fontFamily: getDisplayFontStack(), fontSize: BADGE_FONT_SIZE, color: BADGE_TEXT }).setOrigin(0, 0.5)
@@ -280,6 +293,46 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
   objects.push(gear.container)
   bindAction(scene, 'openSettings', { pointer: gear.hitArea }, options.onSettings)
 
+  /**
+   * Re-fits the balance plate around whatever number is currently in it, at the last layout's scale.
+   *
+   * A no-op before the first `layout()` — `setCoins` is called from a scene's `create()`, which on
+   * some screens runs before `bindLayout` has laid anything out.
+   */
+  function redrawBadge(): void {
+    if (!lastLayout.laid) return
+    const scale = uiScale(lastLayout.width)
+    const insets = screenInsets(scene)
+    const edge = 12 * scale
+    let cursor = insets.left + edge
+    if (back) cursor += back.width + 8 * scale
+    drawBadge(cursor, insets.top + (TOP_BAR_HEIGHT * scale) / 2, scale)
+  }
+
+  /**
+   * Puts the round pill in the GAP between the badge and the gear, never at the viewport's centre.
+   *
+   * Centred was fine while a balance was three digits and stopped being fine at four: measured at
+   * 360px wide with 2325 coins, the badge ran to x=167 and `1 / 5` began at x=163, so the round
+   * indicator was drawn across the badge's own right border. Reported from a phone as "налазит".
+   *
+   * The badge is the element that GROWS — it is sized from the number inside it — so the rule has to
+   * be "clear of whatever the badge came to", never a wider constant. Centred within the free span
+   * keeps it looking placed rather than shoved aside; the clamp is what holds when the span runs
+   * out, pushing the pill right rather than letting the two overlap.
+   */
+  function placeRound(): void {
+    if (!round || !lastLayout.laid) return
+    const scale = uiScale(lastLayout.width)
+    const insets = screenInsets(scene)
+    const edge = 12 * scale
+    const gap = 10 * scale
+    const gearW = buttonWidth('icon', scale)
+    const from = badgeBox.right + gap + round.width / 2
+    const to = lastLayout.width - insets.right - edge - gearW - gap - round.width / 2
+    round.setPosition(Math.max(from, Math.min(lastLayout.width / 2, to)), insets.top + (TOP_BAR_HEIGHT * scale) / 2)
+  }
+
   function drawBadge(x: number, y: number, scale: number): void {
     const h = BADGE_HEIGHT * scale
     // `displayWidth`, not `width`: an Image's `width` is its NATIVE texture size (64 for the coin
@@ -300,9 +353,14 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
     objects,
     setCoins(value: number) {
       coins.setText(String(Math.max(0, Math.floor(value))))
+      // The plate is fitted to the number, so a new number needs a new plate — and the round pill
+      // is placed off the plate's right edge, so it moves with it.
+      redrawBadge()
+      placeRound()
     },
     setRound(index: number, total: number) {
       round?.setText(`${index} / ${total}`)
+      placeRound()
     },
     setBadgesVisible(visible: boolean) {
       badge.setVisible(visible)
@@ -327,6 +385,9 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
       return screenInsets(host).top + TOP_BAR_HEIGHT * uiScale(host.scale.width)
     },
     layout(width: number, height: number) {
+      lastLayout.width = width
+      lastLayout.height = height
+      lastLayout.laid = true
       const scale = uiScale(width)
       const insets = screenInsets(scene)
       const centreY = insets.top + (TOP_BAR_HEIGHT * scale) / 2
@@ -343,10 +404,23 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
       // After both, since the plate is sized from what it contains.
       drawBadge(cursor, centreY, scale)
 
-      round?.setFontSize(ROUND_FONT_SIZE * scale)
-      round?.setPosition(width / 2, centreY)
+      const gearW = buttonWidth('icon', scale)
+      gear.layout(width - insets.right - edge - gearW / 2, centreY, scale)
 
-      gear.layout(width - insets.right - edge - gear.width / 2, centreY, scale)
+      /**
+       * The round pill goes in the GAP between the badge and the gear, not at the viewport's centre.
+       *
+       * Centred was fine while a balance was three digits and stopped being fine at four: measured at
+       * 360px wide with 2325 coins, the badge ran to x=167 and `1 / 5` began at x=163, so the round
+       * indicator was drawn across the badge's own right border. Reported as "налазит", from a phone.
+       *
+       * The badge is the element that GROWS — it is sized from the number inside it — so the fix has
+       * to be expressed as "clear of whatever the badge came to", never as a wider constant. Centred
+       * in the free span keeps it looking placed rather than shoved, and the clamp is what holds when
+       * the span runs out: a long balance pushes the pill right rather than under itself.
+       */
+      round?.setFontSize(ROUND_FONT_SIZE * scale)
+      placeRound()
     },
     destroy() {
       badge.destroy()

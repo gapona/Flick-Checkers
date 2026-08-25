@@ -11,6 +11,7 @@ import { bindLayout } from '../ui/layout'
 import { createOverlay, type Overlay } from '../ui/overlay'
 import { createStatGrid, type StatGrid, type StatRow } from '../ui/statGrid'
 import { uiScale } from '../ui/uiScale'
+import { raiseOverlay } from '../platform/lifecycle'
 
 /**
  * The end of a daily puzzle.
@@ -97,6 +98,10 @@ export class DailyResult extends Phaser.Scene {
   }
 
   create(data: DailyResultData) {
+    // Above every other scene, whatever order `config.ts` registered them in — see
+    // `raiseOverlay`, and the four dead buttons that came of not doing this.
+    raiseOverlay(this)
+
     this.openerKey = data.opener
     this.result = data
 

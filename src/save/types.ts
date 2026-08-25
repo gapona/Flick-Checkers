@@ -262,6 +262,18 @@ export interface SaveStateV4 extends Omit<SaveStateV3, 'v' | 'difficulty'> {
    */
   tutorialDone?: boolean
   /**
+   * The menu character has been poked at least once, so the hint pointing at it can stop.
+   *
+   * Additive and versionless, for the reason {@link tutorialDone} gives at length: a save written
+   * before it existed lacks it and normalises to `false`, which is the truth about that save.
+   *
+   * It exists because the character was reported as not looking pressable at all — "не очевидно что
+   * он тапаемый" — which is the failure mode of every easter egg that is only an easter egg. The
+   * hint is a one-time pointer, and a flag is what makes it one-time rather than a thing that greets
+   * a returning player on every launch.
+   */
+  mascotPoked?: boolean
+  /**
    * Which chapters of the GUIDED TOUR this save has been shown (`game/tour.ts`).
    *
    * A different thing from {@link tutorialDone}, which is the hands-on lessons: the tour is the
@@ -305,6 +317,7 @@ export const DEFAULT_SAVE_STATE: SaveState = {
   opponent: DEFAULT_OPPONENT_ID,
   defeated: [],
   tutorialDone: false,
+  mascotPoked: false,
   tour: [],
   skins: { board: 'default', pieces: 'default', effects: 'classic' },
   stats: emptyStats(),

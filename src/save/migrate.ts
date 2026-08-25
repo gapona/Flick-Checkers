@@ -215,6 +215,7 @@ function normalizeV4(raw: Record<string, unknown>): SaveState {
     // Absent on every save written before the tutorial existed, and `false` is what that means:
     // nobody has been through it. Same "falls straight through" case as `bestCombo`, not a bump.
     tutorialDone: raw.tutorialDone === true,
+    mascotPoked: raw.mascotPoked === true,
     // Unknown ids are KEPT, unlike `defeated` above, and the asymmetry is deliberate: a stale
     // opponent id is a key that unlocks nothing and would accumulate, while a stale chapter id is
     // a screen somebody has already been walked through. Dropping it would replay a tour on a

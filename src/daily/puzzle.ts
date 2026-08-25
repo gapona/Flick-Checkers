@@ -22,7 +22,7 @@ import { createBoardMetrics, type BoardMetrics } from '../board/layout'
 import { createRandom, type Random } from '../bot/random'
 import { generateCandidates, POWER_LEVELS } from '../bot/search'
 import type { BotLevel } from '../bot/levels'
-import { runToRest } from '../sim/shoot'
+import { runToRest, type Shot } from '../sim/shoot'
 import { cloneState, createDisc, createSimConfig, createState, DISC_RADIUS, liveDiscs, type Disc, type SimConfig, type SimState } from '../sim/types'
 
 /** Cells per side of a daily board. The same 8×8 the game is played on — a puzzle on a different
@@ -180,6 +180,32 @@ export function countSolutions(state: SimState, config: SimConfig, level: BotLev
   }
 
   return { solutions, candidates: candidates.length }
+}
+
+/**
+ * ONE shot that clears the board, or `null` if this search finds none.
+ *
+ * **The hint, and it is re-derived rather than shipped.** The catalogue records how many candidate
+ * shots solve each day but not which — and it does not need to: this walks the same list the
+ * generator proved the day against, in the same order, and stops at the first that works. Since a
+ * shipped puzzle solves on between `MIN_SOLUTION_SHARE` and `MAX_SOLUTION_SHARE` of its candidates,
+ * the expected cost is a few dozen `runToRest` calls, which is milliseconds — against the four
+ * seconds the generator spends counting them ALL.
+ *
+ * Storing the answer in `puzzles.json` instead would be a format bump, a five-minute regeneration and
+ * a solution sitting in plain text in the bundle for anyone who opens it. This way the file is
+ * unchanged and the hint cannot disagree with the proof, because it IS the proof, stopped early.
+ *
+ * What the caller does with it is the design question, and `scenes/Daily.ts` answers it: the DIRECTION
+ * is shown and the power is not.
+ */
+export function findSolution(state: SimState, config: SimConfig, level: BotLevel): Shot | null {
+  for (const candidate of puzzleCandidates(state, level)) {
+    const trial = cloneState(state)
+    runToRest(trial, config, { shot: candidate })
+    if (liveDiscs(trial, 'opponent').length === 0) return candidate
+  }
+  return null
 }
 
 /**

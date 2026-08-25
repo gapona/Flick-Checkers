@@ -1,8 +1,8 @@
 import * as Phaser from 'phaser'
-import { MENU_BACKGROUND_KEY, MUSIC_KEY, SFX } from '../assets'
+import { ATLAS_FRAMES, ATLAS_KEY, MENU_BACKGROUND_KEY, MUSIC_KEY, SFX } from '../assets'
 import { playMusic, playSfx } from '../audio/audio'
 import { coinBalance } from '../game/wallet'
-import { hasSavedMatch, tutorialDone } from '../game/persistence'
+import { hasSavedMatch, mascotHintNeeded, rememberMascotPoked, tutorialDone } from '../game/persistence'
 import { shouldRunTour } from '../game/tour'
 import type { CoachStep } from './Coach'
 import { dailyStatus } from '../daily/streak'
@@ -24,6 +24,7 @@ import { createDialogueVoice, type DialogueVoiceManager } from '../audio/dialogu
 import { speechLine, SPEECH_TYPE_MS, type SpeechLine } from '../ui/speechLine'
 import { BUBBLE_TAIL, createSpeechBubble, type SpeechBubble } from '../ui/speechBubble'
 import { createTitleLockup, type TitleLockup } from '../ui/titleLockup'
+import { getTheme } from '../ui/theme'
 import { uiScale } from '../ui/uiScale'
 
 const TITLE_FONT_SIZE = 34
@@ -77,6 +78,20 @@ const MASCOT_BUBBLE_MARGIN = 8
 const MASCOT_FACE_FRACTION = 0.45
 /** Above the drifting discs and the background, below the bars and the button column. */
 const MASCOT_SPEECH_DEPTH = -700
+
+/**
+ * The hint hand: its drawn size, the point of its fingertip within the frame, and how it taps.
+ *
+ * The fingertip is the SPRITE's origin, so the tip lands where it is pointed rather than the picture's
+ * middle — the same numbers `scenes/Coach.ts` uses, because it is the same frame doing the same job
+ * and two copies of a measurement drift.
+ */
+const HINT_SIZE = 52
+const HINT_TIP_X = 0.43
+const HINT_TIP_Y = 0.02
+/** How far the hand dips on a tap, in design units, and how long one tap-and-rest takes. */
+const HINT_TAP_TRAVEL = 9
+const HINT_TAP_PERIOD_MS = 1500
 /**
  * The mascot's own voice — and it is ITS OWN, not one borrowed from the cast.
  *
@@ -142,6 +157,23 @@ export class MainMenu extends Phaser.Scene {
   private mascotSpeech!: SpeechLine
   private mascotBubble!: SpeechBubble
   private mascotVoice: DialogueVoiceManager | null = null
+  /**
+   * The pointing hand that says the character can be pressed, shown until it has been pressed once.
+   *
+   * **A moving character is not an affordance.** It bobs, tilts and blinks, and it was still
+   * reported as not looking pressable — "не очевидно что он тапаемый" — which is the failure every
+   * easter egg has when it is only an easter egg. The same `icon-hand` the guided tour taps controls
+   * with, so a player who has just been walked round the menu already knows what a gold hand means.
+   *
+   * `undefined` once the save says the character has been poked, rather than merely hidden: it is
+   * the only thing on this screen that exists to be retired.
+   */
+  private mascotHint?: Phaser.GameObjects.Image
+  /** Drives the hint's tap, off the SCENE clock — see `ui/mascotView.ts` for why an idle here must
+   * never be a tween. */
+  /** Where `layout()` last put the hand. The tap is an offset from this, re-read every frame, so a
+   * resize mid-tap moves the hand rather than stranding it. */
+  private hintHome = { x: 0, y: 0 }
   private topBar!: TopBar
   private navBar!: NavBar
   private continueButton?: GameButton
@@ -184,10 +216,27 @@ export class MainMenu extends Phaser.Scene {
     this.mascotSpeech.onEnd = () => this.mascotBubble.hide()
     this.chat = createMascotChat()
 
+    if (mascotHintNeeded()) {
+      // White art with the atlas's own dark contour, tinted gold — a flat white hand on a lit face
+      // would have no edge. Depth above the character so the finger is never behind the hat.
+      this.mascotHint = this.add
+        .image(0, 0, ATLAS_KEY, ATLAS_FRAMES.hand)
+        .setOrigin(HINT_TIP_X, HINT_TIP_Y)
+        .setTint(getTheme().colors.accent)
+        .setDepth(MASCOT_SPEECH_DEPTH - 1)
+    }
+
     bindAction(this, 'pokeMascot', { pointer: this.mascot.image }, () => {
       playSfx(SFX.ui)
       this.mascot.react()
       this.sayAsMascot()
+      // The hint has done its job the first time it works. Retired here rather than on a timer: a
+      // player who has not pressed it yet still needs it, however long they have been looking.
+      if (this.mascotHint) {
+        this.mascotHint.destroy()
+        this.mascotHint = undefined
+        rememberMascotPoked()
+      }
     })
     // **`stop()`, never `hide()`.** Phaser's `DisplayList` registers its own `SHUTDOWN` listener
     // when the scene boots — before anything `create()` registers — and destroys every game object
@@ -256,16 +305,25 @@ export class MainMenu extends Phaser.Scene {
       size: 'secondary',
       variant: 'plum',
       /**
-       * The DATE, not the streak.
+       * **The date until today is solved, the streak afterwards** — because the useful answer changes
+       * at exactly that moment and the label has room for one of them.
        *
-       * The streak was here and it answered a question nobody was asking at this moment: what a
-       * player wants to know before tapping is whether today's puzzle is today's. The streak has two
-       * homes already — the status line inside `Daily` and the hero number on its result panel — and
-       * neither is on the way past. It is also `formatDayKey`'s UTC that makes this honest: the day
-       * turns over at midnight UTC, so a locally-formatted date would name one day and open another
-       * for anybody far enough east or west.
+       * Before solving, what a player wants to know on the way past is whether the puzzle behind this
+       * button is TODAY's, which is what the date says. It is `formatDayKey`'s UTC that makes that
+       * honest: the day turns over at midnight UTC, so a locally-formatted date would name one day
+       * and open another for anybody far enough east or west.
+       *
+       * After solving, the date is answering a question that has been settled — the button is
+       * disabled and there is nothing behind it until tomorrow — while the streak is the thing that
+       * just changed. **It shipped showing the date in both states and was reported from a phone**
+       * ("не отображается сколько дней уже страйк"), by a player who had solved the puzzle, been
+       * shown "1 days in a row" on the result panel, pressed Menu, and found the number gone. The
+       * streak's two other homes are both INSIDE the daily, which is the one screen you cannot see
+       * once you have finished with it for the day.
        */
-      label: `${t('daily')} · ${formatDayKey(dateKey(new Date()), getLocale())}`,
+      label: daily.solvedToday
+        ? `${t('daily')} · ${t('dailyStreak', { n: daily.streak })}`
+        : `${t('daily')} · ${formatDayKey(dateKey(new Date()), getLocale())}`,
     })
     this.dailyButton.setEnabled(!daily.solvedToday)
     bindAction(
@@ -292,7 +350,10 @@ export class MainMenu extends Phaser.Scene {
      * match. Pressing "how to play" is not what anybody should be pushed into.
      */
     if (!tutorialDone() && !this.continueButton) {
-      this.tutorialButton = gameButton(this, { size: 'secondary', variant: 'plum', label: t('howToPlay') })
+      // `tutorialPlay`, NOT `howToPlay`: this button starts the six playable LESSONS, while the same
+      // words behind the gear open the reference page. Two destinations under one name is a menu
+      // that lies about one of them, and the rules page already uses this key for the same door.
+      this.tutorialButton = gameButton(this, { size: 'secondary', variant: 'plum', label: t('tutorialPlay') })
       bindAction(
         this,
         'openTutorial',
@@ -344,9 +405,23 @@ export class MainMenu extends Phaser.Scene {
    *
    * Rectangles, asked for at the moment the coach opens — so a control that moved between
    * orientations simply moves the hole, and a control this screen does not carry reports nothing at
-   * all. Note which buttons are deliberately absent: **Continue**, because the tour runs on a fresh
-   * save where there is nothing to continue, and **the tutorial offer**, because a step explaining
-   * a button that disappears the moment it is used is a step that is wrong for every later visit.
+   * all. **Continue** is deliberately absent: the tour runs on a fresh save, where there is nothing
+   * to continue.
+   *
+   * **The tutorial offer used to be absent too, and that was wrong.** The argument was that a step
+   * explaining a button which disappears the moment it is used is a step that is wrong for every
+   * later visit — true of a button in general, and not true of this one, because the menu chapter
+   * ONLY ever runs on a save that has not seen it. That is the same save on which `tutorialDone` is
+   * false and the button is therefore on screen. So the step is right on every visit the tour
+   * actually makes, and leaving it out cost the one thing the tour exists to do: a player finished
+   * the whole six-card tour, played a match, found the lessons later by accident and reported that
+   * there was no way into them from the guide ("тут есть пробная игра обучающая, в нее не попасть
+   * из изначального гайда"). It is pushed CONDITIONALLY, through the same "a step whose target has
+   * no size is dropped" rule every other optional step here uses.
+   *
+   * Second in the order, not last: it is the answer to "I have never played this", and a card
+   * offering the lessons after five cards about shops and rule sets has already lost the person it
+   * was written for.
    */
   tourSteps(): CoachStep[] {
     const steps: CoachStep[] = [
@@ -355,9 +430,14 @@ export class MainMenu extends Phaser.Scene {
       // drift. (They already had — this one held the working name the design doc uses, which is
       // what the game is to the people building it and not what it is called to the player.)
       { target: null, title: 'gameTitle', body: 'coachHelloBody' },
+    ]
+    if (this.tutorialButton) {
+      steps.push({ target: this.tutorialButton.container.getBounds(), title: 'coachTutorialTitle', body: 'coachTutorialBody' })
+    }
+    steps.push(
       { target: this.newMatchButton.container.getBounds(), title: 'coachPlayTitle', body: 'coachPlayBody' },
       { target: this.dailyButton.container.getBounds(), title: 'coachDailyTitle', body: 'coachDailyBody' },
-    ]
+    )
     const shop = this.navBar.tabBounds('Shop')
     if (shop) steps.push({ target: shop, title: 'coachShopTitle', body: 'coachShopBody' })
     const modes = this.navBar.tabBounds('Modes')
@@ -390,8 +470,22 @@ export class MainMenu extends Phaser.Scene {
     this.layout(this.scale.width, this.scale.height)
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     this.discs.update(delta)
+
+    /**
+     * The hint's tap, on the SCENE clock rather than on a tween — the rule `ui/mascotView.ts` states
+     * and this screen has to keep: the TweenManager does not stop with the scene, so a tweened idle
+     * goes on tapping underneath an open Settings panel and the guided tour's own scrim.
+     *
+     * One dip per period with a long rest between, rather than a continuous bounce: a hand that never
+     * stops moving reads as decoration, and what this has to say is "press here", once, repeatedly.
+     */
+    if (this.mascotHint) {
+      const phase = (time % HINT_TAP_PERIOD_MS) / HINT_TAP_PERIOD_MS
+      const dip = phase < 0.34 ? Math.sin(phase / 0.34 * Math.PI) : 0
+      this.mascotHint.setY(this.hintHome.y + dip * HINT_TAP_TRAVEL * uiScale(this.scale.width))
+    }
   }
 
 /**
@@ -634,5 +728,27 @@ export class MainMenu extends Phaser.Scene {
     // "Responsive Layout", gotcha #2).
     const area = this.mascot.image.input?.hitArea as Phaser.Geom.Rectangle | undefined
     area?.setTo(0, 0, this.mascot.image.width, this.mascot.image.height)
+
+    // The fingertip lands on the FACE, not on the sprite's box: the hat is the top third of the
+    // picture and a hand pointing at it points at a hat. `MASCOT_FACE_FRACTION` is the same number
+    // the bubble aims at, for the same reason.
+    if (this.mascotHint) {
+      this.mascotHint.setVisible(this.mascot.image.visible)
+      // Sized against the CHARACTER as well as the viewport: the mascot is capped by the button
+      // column on a short phone (see above), and a fixed-size hand on a shrunken character is a hand
+      // holding a coin rather than a hand pointing at one.
+      const size = Math.min(HINT_SIZE * scale, this.mascot.height * 0.55)
+      this.mascotHint.setScale(size / this.mascotHint.height)
+      // The fingertip touches the character's right EDGE at face height, so the hand hangs into the
+      // empty background beside it. Aimed at the face rather than the sprite's box for the reason the
+      // bubble is: the hat is the top third of the picture, and a finger level with it points at a hat.
+      // Placed just OUTSIDE rather than on the face — the first version put the tip mid-cheek and the
+      // hand covered the half of the character it was drawing attention to.
+      this.hintHome = {
+        x: restX(mascotWidth) + mascotWidth * 0.98,
+        y: feet - this.mascot.height * (1 - MASCOT_FACE_FRACTION),
+      }
+      this.mascotHint.setPosition(this.hintHome.x, this.hintHome.y)
+    }
   }
 }

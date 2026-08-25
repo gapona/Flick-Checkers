@@ -17,6 +17,7 @@ import { createSpeechBubble, type SpeechBubble } from '../ui/speechBubble'
 import { listHeightBetween, scrollableCameraRegion, type ScrollableCameraRegion } from '../ui/scrollRegion'
 import { computeReleaseVelocity, createScrollMomentumState, pushDragSample, resetScrollMomentum, stepMomentum, type ScrollMomentumState } from '../ui/scrollMomentum'
 import { uiScale } from '../ui/uiScale'
+import { raiseOverlay } from '../platform/lifecycle'
 
 export interface OpponentsData {
   /** The scene to resume when this closes without starting anything. */
@@ -199,6 +200,10 @@ export class Opponents extends Phaser.Scene {
   }
 
   create(data: OpponentsData) {
+    // Above every other scene, whatever order `config.ts` registered them in — see
+    // `raiseOverlay`, and the four dead buttons that came of not doing this.
+    raiseOverlay(this)
+
     // Phaser re-uses the scene instance, so every field a `create()` writes is cleared here first.
     // `MatchResult` shipped without this and hung the game on the second panel of a session.
     this.request = data

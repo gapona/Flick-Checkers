@@ -86,6 +86,9 @@ const SPEECH_COLOR = '#c98cff'
  * down into the consumable buttons. That is what makes 78 safe here where it would not be if the
  * portrait were anchored by its top.
  */
+/** The status capsule's border at rest. In hot-seat it is replaced per turn — see `statusStroke`. */
+const STATUS_PLATE_STROKE = 0x5a2394
+
 const HUD_PORTRAIT_HEIGHT = 78
 /** Between the portrait's box and the status capsule beside it. */
 const PORTRAIT_GAP = 10
@@ -269,6 +272,21 @@ export class Game extends Phaser.Scene {
   private focus = { x: 0, y: 0 }
   /** The aim pull-back / return animation, so a second gesture cannot fight the first one's tail. */
   private cameraTween?: Phaser.Tweens.Tween
+
+  /**
+   * The zoom the camera is heading FOR, which is not the zoom it currently has.
+   *
+   * **The difference is a shipped bug: "I swiped with a finger and the board shrank."** The two
+   * aim-camera moves are tweens, and a tween applies nothing at the moment it is created — it writes
+   * its first value on the next update. `leaveAimCamera` asked `cameras.main.zoom === fit.zoom`, so
+   * when a press and a second finger landed in the SAME input tick the sequence was: press starts
+   * the zoom-out tween (camera still at the resting zoom), second finger cancels the gesture,
+   * `leaveAimCamera` reads a camera that has not moved yet, concludes there is nothing to undo and
+   * returns — leaving the zoom-out tween running with nobody to reverse it. The board stayed small
+   * for the rest of the round. Comparing against the INTENT rather than against the current frame's
+   * value is what makes the guard mean what it says.
+   */
+  private cameraTargetZoom = 0
 
   /** One emitter for the whole round, fired by hand — see {@link burstKnockouts}. */
   private knockParticles!: Phaser.GameObjects.Particles.ParticleEmitter
@@ -681,16 +699,28 @@ export class Game extends Phaser.Scene {
       return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
     }
 
+    /**
+     * Whose shot it is — and hot-seat gets its OWN wording, because it is a different question there.
+     *
+     * Against a character the answer is "you or them" and the portrait beside the capsule settles it.
+     * With two people at one board the labels are Player 1 and Player 2, nothing on screen said which
+     * discs either owns (the board deliberately does not flip), and the turn rules were read as
+     * arbitrary as a result — three separate questions from one player in one match, ending in "как
+     * понять кто 1 игрок, а кто 2?". The capsule's border is now the active side's own disc colour
+     * and this card is what says so.
+     */
+    const turnBody = this.twoPlayer ? ('coachTurnTwoBody' as const) : ('coachTurnBody' as const)
+
     return [
       { target: board, title: 'coachBoardTitle', body: 'coachBoardBody' },
       // No target: "a disc that crosses the edge is gone" is a rule about the whole board, and
       // ringing one square would say it is about that square.
       { target: null, title: 'coachEdgeTitle', body: 'coachEdgeBody' },
-      { target: boxOf(this.statusText), title: 'coachTurnTitle', body: 'coachTurnBody' },
+      { target: boxOf(this.statusText), title: 'coachTurnTitle', body: turnBody },
       // Gated on the panel EXISTING rather than on the block's own box, which keeps whatever the
       // last panelled layout put in it: a phone rotated from landscape to portrait would otherwise
       // report both this step and the capsule's, and the player would be told whose shot it is twice.
-      { target: this.panelFit?.panel ? this.opponentBlock.box : ZERO_RECT, title: 'coachTurnTitle', body: 'coachTurnBody' },
+      { target: this.panelFit?.panel ? this.opponentBlock.box : ZERO_RECT, title: 'coachTurnTitle', body: turnBody },
       { target: boxOf(this.retakeButton.container), title: 'coachRetakeTitle', body: 'coachRetakeBody' },
       { target: boxOf(this.powerButton.container), title: 'coachPowerTitle', body: 'coachPowerBody' },
     ]
@@ -948,7 +978,7 @@ export class Game extends Phaser.Scene {
   /** Back to the resting fit. Called from every ending the gesture has — fired, cancelled, or
    * interrupted — because a camera left zoomed out is a board that never comes back. */
   private leaveAimCamera(): void {
-    if (this.cameras.main.zoom === this.fit.zoom) return
+    if (this.cameraTargetZoom === this.fit.zoom) return
     this.moveCamera(this.fit.zoom, this.focusFor(this.fit.zoom), this.board.metrics.boardH / 2)
   }
 
@@ -963,6 +993,7 @@ export class Game extends Phaser.Scene {
   private moveCamera(zoom: number, focusX: number, focusY: number): void {
     const camera = this.cameras.main
     this.cameraTween?.stop()
+    this.cameraTargetZoom = zoom
 
     const from = { zoom: camera.zoom, x: this.focus.x, y: this.focus.y }
     const step = { t: 0 }
@@ -1530,8 +1561,26 @@ export class Game extends Phaser.Scene {
    * left edge. Kept as arithmetic in one place because both orientations need the identical sum and
    * two copies of it would drift.
    */
+  /**
+   * How much of the band the opponent's face takes, and **zero when there is no opponent**.
+   *
+   * Two people at one board have no third face to look at, so the portrait is hidden in hot-seat —
+   * and it used to keep its column anyway, on the reasoning that leaving the arithmetic alone was
+   * the safe change. It is not: the status capsule is centred on what is LEFT of the band, so
+   * reserving a column nothing occupies pushed it 25px right of the board's own centre line, with a
+   * conspicuous hole where the face would have been. Reported from a phone as "не по центру", and
+   * the report is about the capsule rather than the board — the board was centred all along.
+   *
+   * Asked per call rather than cached: the same layout code runs for both modes, and the mode is
+   * fixed for a match but the scale is not.
+   */
+  private portraitColumn(scale: number): number {
+    if (!this.isSolo()) return 0
+    return portraitWidthFor(HUD_PORTRAIT_HEIGHT * scale) + PORTRAIT_GAP * scale
+  }
+
   private speakerColumnX(band: Rect, statusWidth: number, scale: number): number {
-    const column = portraitWidthFor(HUD_PORTRAIT_HEIGHT * scale) + PORTRAIT_GAP * scale
+    const column = this.portraitColumn(scale)
     const block = column + statusWidth
     const margin = 6 * scale
     const centre = band.x + band.width / 2
@@ -1916,6 +1965,9 @@ export class Game extends Phaser.Scene {
     // instantly, because a resize is not an animation.
     const zoom = this.aiming ? computeAimZoom(this.board.metrics, this.viewportW, this.viewportH) : this.fit.zoom
     this.cameraTween?.stop()
+    // The instant path writes the intent too — otherwise a resize mid-gesture would leave
+    // `cameraTargetZoom` describing a move that no longer happened. See its own comment.
+    this.cameraTargetZoom = zoom
     /**
      * The side panel moves the BOARD, and it does it through what the camera centres on.
      *
@@ -2202,7 +2254,7 @@ export class Game extends Phaser.Scene {
      * clamping the plate alone would just clip the text it is drawn around.
      */
     const band = portrait ? this.bands.trailing : this.bands.leading
-    const column = portraitWidthFor(HUD_PORTRAIT_HEIGHT * scale) + PORTRAIT_GAP * scale
+    const column = this.portraitColumn(scale)
     const statusRoom = Math.max(110 * scale, band.width - column - 16 * scale)
     this.statusText.setWordWrapWidth(statusRoom - 28 * scale)
 
@@ -2254,7 +2306,7 @@ export class Game extends Phaser.Scene {
 
       const speechRow = SPEECH_ROW_HEIGHT * hudScale
       const stackStatusH = this.statusText.height + 16 * hudScale
-      const stackColumn = portraitWidthFor(HUD_PORTRAIT_HEIGHT * hudScale) + PORTRAIT_GAP * hudScale
+      const stackColumn = this.portraitColumn(hudScale)
       const stackRoom = Math.max(110 * hudScale, this.bands.trailing.width - stackColumn - 16 * hudScale)
       const stackW = Math.min(stackRoom, Math.max(this.statusText.width + 28 * hudScale, 120 * hudScale))
 
@@ -2312,7 +2364,7 @@ export class Game extends Phaser.Scene {
     this.retakeButton.layout(0, 0, scale)
     this.powerButton.layout(0, 0, scale)
 
-    const column = portraitWidthFor(HUD_PORTRAIT_HEIGHT * scale) + PORTRAIT_GAP * scale
+    const column = this.portraitColumn(scale)
     const room = Math.max(110 * scale, this.bands.trailing.width - column - 16 * scale)
     this.statusText.setWordWrapWidth(room - 28 * scale)
 
@@ -2326,8 +2378,36 @@ export class Game extends Phaser.Scene {
     this.statusPlate.clear()
     this.statusPlate.fillStyle(0x2a0f40, 0.92)
     this.statusPlate.fillRoundedRect(x - width / 2, y - height / 2, width, height, 12 * scale)
-    this.statusPlate.lineStyle(2 * scale, 0x5a2394, 1)
+    this.statusPlate.lineStyle(2 * scale, this.statusStroke(), 1)
     this.statusPlate.strokeRoundedRect(x - width / 2, y - height / 2, width, height, 12 * scale)
+  }
+
+  /**
+   * The capsule's border, and in hot-seat it is **the colour of the discs whose turn it is**.
+   *
+   * "Player 2 shoots" is a true sentence that answers the wrong question. Two people at one board
+   * both look at the same discs from opposite sides, the board deliberately does NOT flip (§2 chose
+   * the top-down projection precisely so a direction reads the same from anywhere), and nothing on
+   * screen ever said which colour "Player 2" owns — so the label was a name with nothing attached to
+   * it. Asked outright by a player, in as many words: "как понять кто 1 игрок, а кто 2?"
+   *
+   * A colour rather than more words because there is no room for more words: the capsule already
+   * carries the turn, the round, the branch and sometimes the penalty note, and the block it sits in
+   * is measured against a band a short phone barely affords. It also survives being glanced at
+   * mid-shot, which a sentence does not.
+   *
+   * Solo keeps the plain violet: there the sides are "you" and "them", the portrait beside the
+   * capsule already says who "them" is, and tinting it would make the player's own turn look like a
+   * different KIND of state rather than the same state on the other side.
+   */
+  private statusStroke(): number {
+    // `this.round` can genuinely be missing here: `bindLayout` runs one layout immediately, and on
+    // the path that starts a match without the character gallery that happens before `startRound`
+    // has assigned one. Reading through it unguarded threw during `create()` and took the whole
+    // scene with it — the two-player match could not be started at all, which is the same shape of
+    // failure as the rival popup's own queued-RESUME bug and just as invisible to `tsc`.
+    if (!this.twoPlayer || !this.round || this.round.winner) return STATUS_PLATE_STROKE
+    return pieceSet(activePieceSet())[this.round.turn === PLAYER_SIDE ? 'player' : 'opponent'].light
   }
 
   /** DEV readout. The step count and alpha are the two numbers S3's "no judder at 120Hz" claim

@@ -301,6 +301,6 @@ export const HELP_CHAPTERS: readonly HelpChapter[] = [
   { titleKey: 'helpItemsTitle', bodyKeys: ['helpItemsA', 'helpItemsB', 'helpItemsC'] },
   { titleKey: 'helpRivalsTitle', bodyKeys: ['helpRivalsA', 'opponentNote'] },
   { titleKey: 'helpDailyTitle', bodyKeys: ['helpDailyA'] },
-  { titleKey: 'helpFriendTitle', bodyKeys: ['helpFriendA'] },
+  { titleKey: 'helpFriendTitle', bodyKeys: ['helpFriendA', 'helpFriendB'] },
   { titleKey: 'helpSkinsTitle', bodyKeys: ['helpSkinsA'] },
 ]

@@ -12,6 +12,7 @@ import { createOverlay, type Overlay } from '../ui/overlay'
 import { createSlider, type Slider } from '../ui/slider'
 import { getTheme, toCssColor } from '../ui/theme'
 import { uiScale } from '../ui/uiScale'
+import { raiseOverlay } from '../platform/lifecycle'
 
 interface SettingsData {
   opener: string
@@ -64,6 +65,10 @@ export class Settings extends Phaser.Scene {
   }
 
   create(data: SettingsData) {
+    // Above every other scene, whatever order `config.ts` registered them in — see
+    // `raiseOverlay`, and the four dead buttons that came of not doing this.
+    raiseOverlay(this)
+
     this.openerKey = data.opener
 
     this.overlay = createOverlay(this, { onDismiss: () => this.close() })

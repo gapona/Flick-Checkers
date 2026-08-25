@@ -18,8 +18,8 @@ import { logError } from '../platform/yt'
 import { t } from '../i18n/strings'
 import { bindAction, bindDrag } from '../platform/input'
 import { getDisplayFontStack } from '../ui/font'
-import { buttonHeight, gameButton, type GameButton } from '../ui/button'
-import { contentColumn, createTopBar, navBack, navMarkRoot, type TopBar } from '../ui/chrome'
+import { buttonHeight, buttonWidth, gameButton, type GameButton } from '../ui/button'
+import { contentColumn, createTopBar, navBack, navMarkRoot, screenInsets, type TopBar } from '../ui/chrome'
 import { bindLayout } from '../ui/layout'
 import { uiScale } from '../ui/uiScale'
 
@@ -35,6 +35,9 @@ const RESET_DELAY_MS = 1100
 const AIM_CAMERA_MS = 130
 const BACKGROUND_OVERSCAN = 1.04
 const BOARD_SIZE = 8
+/** How far the button pair may be shrunk to fit a narrow band before it stops being readable.
+ * `MainMenu`'s own floor, for the same trade. */
+const MIN_BUTTON_SCALE = 0.7
 
 const TITLE_COLOR = '#ffc23c'
 const LINE_COLOR = '#e6d8f5'
@@ -104,6 +107,16 @@ export class Tutorial extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text
   private lineText!: Phaser.GameObjects.Text
   private actionButton!: GameButton
+  /**
+   * Back one lesson, disabled on the first.
+   *
+   * The lessons build on each other — lesson three's punchline only lands if you remember lesson
+   * two's reach — and until this existed there was no way to re-read one you had walked past.
+   * Reported alongside the guided tour's missing Back, from the same session and in the same words.
+   * Disabled rather than absent for the reason `Coach`'s own Back gives: the block's height is
+   * measured, and a control that appears at lesson two would move everything under it.
+   */
+  private backButton!: GameButton
 
   private viewportW = 0
   private viewportH = 0
@@ -114,6 +127,21 @@ export class Tutorial extends Phaser.Scene {
    * previous frame's value. */
   private focus = { x: 0, y: 0 }
   private cameraTween?: Phaser.Tweens.Tween
+
+  /**
+   * The zoom the camera is heading FOR, which is not the zoom it currently has.
+   *
+   * **The difference is a shipped bug: "I swiped with a finger and the board shrank."** The two
+   * aim-camera moves are tweens, and a tween applies nothing at the moment it is created — it writes
+   * its first value on the next update. `leaveAimCamera` asked `cameras.main.zoom === fit.zoom`, so
+   * when a press and a second finger landed in the SAME input tick the sequence was: press starts
+   * the zoom-out tween (camera still at the resting zoom), second finger cancels the gesture,
+   * `leaveAimCamera` reads a camera that has not moved yet, concludes there is nothing to undo and
+   * returns — leaving the zoom-out tween running with nobody to reverse it. The board stayed small
+   * for the rest of the round. Comparing against the INTENT rather than against the current frame's
+   * value is what makes the guard mean what it says.
+   */
+  private cameraTargetZoom = 0
 
   constructor() {
     super('Tutorial')
@@ -153,6 +181,10 @@ export class Tutorial extends Phaser.Scene {
 
     this.actionButton = gameButton(this, { size: 'compact', variant: 'ghost', label: t('tutSkip') })
     bindAction(this, 'tutorialAdvance', { pointer: this.actionButton.hitArea, keys: ['ENTER', 'SPACE'] }, () => this.advanceLesson())
+    this.backButton = gameButton(this, { size: 'icon', variant: 'ghost', icon: '‹' })
+    // Not ESC: the top bar already owns that, and it LEAVES. A key that sometimes goes back one
+    // lesson and sometimes leaves the tutorial is a key nobody presses twice.
+    bindAction(this, 'tutorialBack', { pointer: this.backButton.hitArea, keys: ['BACKSPACE', 'LEFT'] }, () => this.previousLesson())
 
     this.topBar = createTopBar(this, {
       back: true,
@@ -177,7 +209,7 @@ export class Tutorial extends Phaser.Scene {
     this.topBar.setCoins(coinBalance())
 
     this.uiCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height)
-    for (const object of [this.titleText, this.lineText, this.actionButton.container, ...this.topBar.objects]) {
+    for (const object of [this.titleText, this.lineText, this.actionButton.container, this.backButton.container, ...this.topBar.objects]) {
       this.cameras.main.ignore(object)
     }
 
@@ -203,6 +235,7 @@ export class Tutorial extends Phaser.Scene {
     this.titleText.setText(`${index + 1} / ${LESSONS.length}  ·  ${t(this.lesson.titleKey)}`)
     this.actionButton.setVariant('ghost')
     this.actionButton.setLabel(t('tutSkip'))
+    this.backButton.setEnabled(index > 0)
     this.resetBoard()
     this.say(t(this.lesson.briefKey))
   }
@@ -259,6 +292,13 @@ export class Tutorial extends Phaser.Scene {
    * a permanent Skip beside a Next that only sometimes exists, which is a row that changes shape
    * under the player's thumb.
    */
+  /** One lesson back, from the top. Guarded rather than hidden on the first — see {@link backButton}. */
+  private previousLesson(): void {
+    if (this.index === 0) return
+    playSfx(SFX.ui)
+    this.loadLesson(this.index - 1)
+  }
+
   private advanceLesson(): void {
     if (this.index < LESSONS.length - 1) {
       playSfx(SFX.ui)
@@ -342,13 +382,14 @@ export class Tutorial extends Phaser.Scene {
    * board that never comes back. */
   private leaveAimCamera(): void {
     const { boardW, boardH } = this.board.metrics
-    if (this.cameras.main.zoom === this.fit.zoom) return
+    if (this.cameraTargetZoom === this.fit.zoom) return
     this.moveCamera(this.fit.zoom, boardW / 2, boardH / 2)
   }
 
   private moveCamera(zoom: number, focusX: number, focusY: number): void {
     const camera = this.cameras.main
     this.cameraTween?.stop()
+    this.cameraTargetZoom = zoom
 
     const from = { zoom: camera.zoom, x: this.focus.x, y: this.focus.y }
     const step = { t: 0 }
@@ -467,6 +508,9 @@ export class Tutorial extends Phaser.Scene {
     // because a resize is not an animation.
     const zoom = this.aiming ? computeAimZoom(this.board.metrics, this.viewportW, this.viewportH) : this.fit.zoom
     this.cameraTween?.stop()
+    // The instant path writes the intent too — otherwise a resize mid-gesture would leave
+    // `cameraTargetZoom` describing a move that no longer happened. See its own comment.
+    this.cameraTargetZoom = zoom
     this.setCamera(zoom, boardW / 2, boardH / 2)
 
     const visibleW = this.viewportW / this.fit.zoom
@@ -507,8 +551,44 @@ export class Tutorial extends Phaser.Scene {
     const gap = ROW_GAP * scale
     // From the TOKEN, not from `actionButton.height`, which is still at the previous scale until
     // `layout()` runs on it two lines below — see `buttonHeight`'s own note.
-    const buttonH = buttonHeight('compact', scale)
-    const blockHeight = this.titleText.height + gap + this.lineText.height + gap + buttonH
+    /**
+     * Back and the action, side by side — or stacked where the band is too narrow for the pair.
+     *
+     * **The row height is the TALLER of the two tokens**, not the action's. `icon` is 64 design units
+     * against `compact`'s 56, so measuring the block by the action alone left the back button hanging
+     * 8 units past the bottom of it — which on a 360x640 phone is one pixel of clearance from the
+     * edge of the screen, and on the tour's own ring around it would have been visible as a cut.
+     *
+     * **And landscape needs the stack.** The trailing band there is a side strip beside the board:
+     * 198 units wide at 740x360 against a 242-unit pair, so the row ran 22px off the right of the
+     * viewport. Height is what landscape has plenty of, so the pair becomes a column — the action
+     * first, Back under it, which is the order `scenes/Coach.ts` settled on for the same reason.
+     */
+    const wanted = buttonWidth('icon', scale) + gap + buttonWidth('compact', scale)
+    /**
+     * The pair SHRINKS to the band rather than stacking or overflowing, and both alternatives were
+     * tried before this.
+     *
+     * Overflowing is what shipped for an afternoon: the trailing band in landscape is a side strip
+     * beside the board — 198 units wide at 740x360 against a 242-unit pair — so the row ran 22px off
+     * the right of the viewport. Stacking fixed the width and broke the height instead: two rows plus
+     * the wrapped hint came to 294 units in a 360-tall screen whose top bar already owns the first 96,
+     * and the block simply ran off the bottom.
+     *
+     * Shrinking is exact here in one division, unlike the side panel's own pairs: every token in this
+     * kit is `SIZES[size].w * scale`, so the row's width is strictly proportional to the scale and
+     * there is no text metric in it to quantise. Legibility is what it costs and reachability is not —
+     * `gameButton` floors every hit area at `MIN_TOUCH_TARGET` however small the face is drawn.
+     */
+    const rowScale = Math.max(scale * MIN_BUTTON_SCALE, Math.min(scale, (scale * (band.width - 16 * scale)) / wanted))
+    const actionW = buttonWidth('compact', rowScale)
+    const backW = buttonWidth('icon', rowScale)
+    const rowW = backW + ROW_GAP * rowScale + actionW
+    // The TALLER of the two tokens: `icon` is 64 design units against `compact`'s 56, so measuring the
+    // block by the action alone left the back button hanging 8 units past the bottom of it — one pixel
+    // from the edge of a 360x640 phone, and a cut through the guided tour's ring around it.
+    const rowH = Math.max(buttonHeight('compact', rowScale), buttonHeight('icon', rowScale))
+    const blockHeight = this.titleText.height + gap + this.lineText.height + gap + rowH
 
     /**
      * Centred in the band, then pushed clear of the top bar.
@@ -520,11 +600,18 @@ export class Tutorial extends Phaser.Scene {
      * Measured at 740x360: the block is about 220 tall in a 360 band, so centring alone put its
      * title at y 70 against a gear occupying 28 to 92.
      */
-    const floor = this.topBar.height(this) + 8 * scale
-    const top = Math.max(floor, centre.y - blockHeight / 2)
+    const ceiling = this.topBar.height(this) + 8 * scale
+    // …and clear of the BOTTOM edge as well. In portrait the trailing band runs to the last pixel of
+    // the viewport, so a block that fills it puts a tap target on the home indicator: measured at
+    // 360x640, the back button ended 1px from the edge. Same clamp, same reason, as the board's HUD.
+    const floor = height - screenInsets(this).bottom - 8 * scale
+    const top = Math.max(ceiling, Math.min(centre.y - blockHeight / 2, floor - blockHeight))
 
     this.titleText.setPosition(centre.x, top)
     this.lineText.setPosition(centre.x, top + this.titleText.height + gap)
-    this.actionButton.layout(centre.x, top + blockHeight - buttonH / 2, scale)
+    const rowY = top + blockHeight - rowH / 2
+    const rowLeft = centre.x - rowW / 2
+    this.backButton.layout(rowLeft + backW / 2, rowY, rowScale)
+    this.actionButton.layout(rowLeft + backW + ROW_GAP * rowScale + actionW / 2, rowY, rowScale)
   }
 }

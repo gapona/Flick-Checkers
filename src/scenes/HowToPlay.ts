@@ -16,6 +16,7 @@ import {
   navBack,
   navReturnsTo,
   navMarkRoot,
+  PAGE_FILL,
   type PageBackground,
   type TopBar,
 } from '../ui/chrome'
@@ -47,6 +48,12 @@ const SCROLLBAR_MIN_THUMB = 28
 const SCROLLBAR_TRACK_ALPHA = 0.18
 const SCROLLBAR_THUMB_ALPHA = 0.75
 const SCROLLBAR_COLOR = 0x5a2394
+
+/** The fade at each open end of the list — see `drawEdgeFades`. Design units, banded rather than a
+ * gradient so it looks the same under the Canvas fallback. */
+const FADE_DEPTH = 28
+const FADE_BANDS = 8
+const FADE_ALPHA = 0.92
 
 const TITLE_COLOR = '#ffc23c'
 const BODY_COLOR = '#c9b6e4'
@@ -266,8 +273,48 @@ export class HowToPlay extends Phaser.Scene {
    * always drawn — the `maxScroll <= 0` guard stays because a scrollbar that cannot move is furniture
    * and the rule should not depend on how much copy happens to be in the dictionary.
    */
+  /**
+   * A soft fade at whichever end of the list still has copy beyond it.
+   *
+   * **The list is clipped by a camera VIEWPORT, which is a hard edge**: a paragraph running past the
+   * bottom is not faded or cropped at a word, it is sliced across the middle of a line of type,
+   * directly above the two buttons. Reported as the page cutting its buttons off — the complaint is
+   * about the seam, and the seam is what makes a clean layout look broken. A gradient says "there is
+   * more of this below" in the one place a scrollbar cannot, which is where the eye already is.
+   *
+   * **Banded, not `fillGradientStyle`.** That call is WebGL-only in this Phaser build and degrades to
+   * a flat fill under the Canvas fallback — which here would be an opaque bar across the bottom of
+   * the page rather than a fade. The same "no shader, works identically under Canvas" rule the widget
+   * kit holds itself to. Eight bands is enough that the steps are invisible at this alpha.
+   *
+   * Drawn INSIDE the region with the camera's scroll added back, for the reason `drawScrollbar` gives.
+   */
+  private drawEdgeFades(): void {
+    const { height } = this.scrollbarTrack
+    if (height <= 0) return
+    const depth = Math.min(FADE_DEPTH * uiScale(this.scale.width), height / 3)
+    const band = depth / FADE_BANDS
+    const width = this.scale.width
+
+    // Only where there is something to fade INTO. At the very bottom of the list the seam is the end
+    // of the text, and fading it would be dimming the last paragraph for no reason.
+    const below = this.maxScroll - this.scrollY
+    for (let i = 0; i < FADE_BANDS; i += 1) {
+      const alpha = ((i + 1) / FADE_BANDS) * FADE_ALPHA
+      if (below > 1) {
+        this.scrollbar.fillStyle(PAGE_FILL, alpha)
+        this.scrollbar.fillRect(0, this.scrollY + height - band * (i + 1), width, band)
+      }
+      if (this.scrollY > 1) {
+        this.scrollbar.fillStyle(PAGE_FILL, alpha)
+        this.scrollbar.fillRect(0, this.scrollY + band * i, width, band)
+      }
+    }
+  }
+
   private drawScrollbar(): void {
     this.scrollbar.clear()
+    this.drawEdgeFades()
     if (this.maxScroll <= 0) return
 
     const { x, width, height } = this.scrollbarTrack

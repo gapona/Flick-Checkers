@@ -355,6 +355,24 @@ describe('the tutorial flag', () => {
     }
   })
 
+  /**
+   * The same additive-versionless shape as `tutorialDone`, and worth its own case for the same
+   * reason: the field decides whether a one-time hint is shown, so getting the default backwards
+   * would greet every existing player with a pointing hand at a character they already know about.
+   */
+  it('a save written before the mascot hint existed has not poked it', () => {
+    const state = migrate(v4({}))
+    assert.ok(state)
+    assert.equal(state.mascotPoked, false)
+  })
+
+  it('remembers that the mascot has been poked, and defaults anything else to false', () => {
+    assert.equal(migrate(v4({ mascotPoked: true }))?.mascotPoked, true)
+    for (const junk of ['true', 1, {}, null]) {
+      assert.equal(migrate(v4({ mascotPoked: junk }))?.mascotPoked, false, `${JSON.stringify(junk)} should not count`)
+    }
+  })
+
   it('a v1 payload climbs the whole ladder and still has not done it', () => {
     const state = migrate({
       v: 1,
@@ -369,6 +387,7 @@ describe('the tutorial flag', () => {
     })
     assert.ok(state)
     assert.equal(state.tutorialDone, false)
+    assert.equal(state.mascotPoked, false)
     // And the rest of the ladder still ran — the flag must not have short-circuited anything.
     assert.equal(state.v, SAVE_SCHEMA_VERSION)
     assert.equal(state.settings.music, 0)

@@ -14,6 +14,7 @@ import { createOverlay, type Overlay } from '../ui/overlay'
 import { createStatGrid, type StatGrid, type StatRow } from '../ui/statGrid'
 import { uiScale } from '../ui/uiScale'
 import type { Side } from '../sim/types'
+import { raiseOverlay } from '../platform/lifecycle'
 
 /**
  * The end of a round, or the end of a match.
@@ -147,6 +148,10 @@ export class MatchResult extends Phaser.Scene {
   }
 
   create(data: MatchResultData) {
+    // Above every other scene, whatever order `config.ts` registered them in — see
+    // `raiseOverlay`, and the four dead buttons that came of not doing this.
+    raiseOverlay(this)
+
     this.openerKey = data.opener
     this.result = data
 

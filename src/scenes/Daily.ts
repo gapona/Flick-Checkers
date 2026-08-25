@@ -7,19 +7,21 @@ import { boardSet } from '../game/skins'
 import { createDiscView, type DiscView } from '../board/discView'
 import { createAimView, type AimView } from '../board/aimView'
 import { asCatalog, boardFor, DAILY_CATALOG_KEY, puzzleFor, type DailyRecord } from '../daily/catalog'
-import { dailyConfig, dateKey, isSolved } from '../daily/puzzle'
+import { dailyConfig, dateKey, findSolution, isSolved } from '../daily/puzzle'
 import { dailyStatus, recordDailySolved, type DailyStatus } from '../daily/streak'
 import { activeBoardSet, activePieceSet, awardCoins, coinBalance } from '../game/wallet'
 import { DAILY_REWARD } from '../game/economy'
 import { advance, createStepper, resetStepper, type Stepper } from '../sim/step'
-import { applyImpulse, freezeIfStalled } from '../sim/shoot'
+import { applyImpulse, freezeIfStalled, type Shot } from '../sim/shoot'
 import { computeAim, discAt, firstContact, reachOf } from '../sim/aim'
 import { createOutcome, type SimOutcome } from '../sim/outcome'
 import { cloneState, isMoving, liveDiscs, type Disc, type SimConfig, type SimState } from '../sim/types'
+import { BOT_LEVELS } from '../bot/levels'
 import { logError } from '../platform/yt'
 import { t } from '../i18n/strings'
 import { bindAction, bindDrag } from '../platform/input'
-import { createTopBar, navBack, navMarkRoot, type TopBar } from '../ui/chrome'
+import { createTopBar, navBack, navMarkRoot, screenInsets, type TopBar } from '../ui/chrome'
+import { buttonHeight, gameButton, type GameButton } from '../ui/button'
 import { bindLayout } from '../ui/layout'
 import { uiScale } from '../ui/uiScale'
 
@@ -27,6 +29,26 @@ import { uiScale } from '../ui/uiScale'
 const RESULT_DELAY_MS = 700
 
 const STATUS_FONT_SIZE = 18
+
+/**
+ * The hint: how many failed attempts buy it, and what its line looks like.
+ *
+ * Three, not one. The first miss is information — it tells you the shot was long, or wide, or both —
+ * and offering help before the player has had a chance to use it is a game that does not believe
+ * they can solve it. By the third they are guessing, which is the state the hint exists for.
+ */
+const HINT_AFTER_ATTEMPTS = 3
+/** Below the aim ray (40) so a hint can never be mistaken for the shot being made, above the discs. */
+const HINT_DEPTH = 30
+const HINT_COLOR = 0x6fe3ff
+const HINT_ALPHA = 0.7
+const HINT_WIDTH = 3
+const HINT_DASH = 14
+const HINT_GAP = 10
+/** How far the line runs, in board cells — a fixed length, so it carries the direction and nothing
+ * about the pull. Short of the board's diagonal on purpose: a line that reached the far rank would
+ * end ON the targets and be the answer. */
+const HINT_CELLS = 3
 const BACKGROUND_OVERSCAN = 1.04
 /** Matches `Game`'s. The daily is the same gesture on the same board, so it gets the same camera —
  * a pull that has room to be pulled in one mode and not in the other is two different games. */
@@ -68,6 +90,32 @@ export class Daily extends Phaser.Scene {
   private pristine!: SimState
 
   /**
+   * How many shots this player has spent on today's puzzle, and the hint that appears once they
+   * have spent enough of them.
+   *
+   * **Asked for by a player, in the right words**: "может оно как в сапере давало бы советы как это
+   * решить?" — after taking, by their own account, a great many attempts. A one-shot puzzle with an
+   * unlimited retry is not one shot in practice; it is a search, and a search with no feedback
+   * between attempts is flailing rather than solving.
+   *
+   * **The hint shows the DIRECTION and not the power**, which is the whole of the design. §8's rule
+   * for the shop — nothing may answer "can you aim this" — is about things you BUY, and this is
+   * free; but the spirit of it is what stops this from being a Solve button. A line from the disc
+   * says which of the 360 degrees is worth trying and leaves the pull, which is the half a player
+   * actually gets better at. Minesweeper's own hint does the same thing: it removes a guess, not the
+   * game.
+   *
+   * Session state, deliberately not saved. It resets when the screen is left, because a player who
+   * comes back tomorrow is not owed yesterday's frustration, and one who leaves and returns today
+   * has had the break that usually solves it anyway.
+   */
+  private attempts = 0
+  /** The solving shot, found once and kept — see `showHint`. `null` until asked for. */
+  private hint: Shot | null = null
+  private hintLine!: Phaser.GameObjects.Graphics
+  private hintButton!: GameButton
+
+  /**
    * **The way out, and it is a fix rather than a tidy-up.**
    *
    * This screen used to carry a bare gear glyph and nothing else: the only exit was the `BACKSPACE`
@@ -92,6 +140,21 @@ export class Daily extends Phaser.Scene {
    */
   private focus = { x: 0, y: 0 }
   private cameraTween?: Phaser.Tweens.Tween
+
+  /**
+   * The zoom the camera is heading FOR, which is not the zoom it currently has.
+   *
+   * **The difference is a shipped bug: "I swiped with a finger and the board shrank."** The two
+   * aim-camera moves are tweens, and a tween applies nothing at the moment it is created — it writes
+   * its first value on the next update. `leaveAimCamera` asked `cameras.main.zoom === fit.zoom`, so
+   * when a press and a second finger landed in the SAME input tick the sequence was: press starts
+   * the zoom-out tween (camera still at the resting zoom), second finger cancels the gesture,
+   * `leaveAimCamera` reads a camera that has not moved yet, concludes there is nothing to undo and
+   * returns — leaving the zoom-out tween running with nobody to reverse it. The board stayed small
+   * for the rest of the round. Comparing against the INTENT rather than against the current frame's
+   * value is what makes the guard mean what it says.
+   */
+  private cameraTargetZoom = 0
 
   constructor() {
     super('Daily')
@@ -136,8 +199,19 @@ export class Daily extends Phaser.Scene {
     })
     this.topBar.setCoins(coinBalance())
 
+    /**
+     * The hint's line and its button.
+     *
+     * The line is a WORLD object — it points from a disc at a place on the board, so it has to be
+     * drawn in the board's own space and at the board's own scale. The button is UI. That split is
+     * why they are handed to opposite camera ignore lists below.
+     */
+    this.hintLine = this.add.graphics().setDepth(HINT_DEPTH)
+    this.hintButton = gameButton(this, { size: 'compact', variant: 'plum', label: t('dailyHint') })
+    bindAction(this, 'dailyHint', { pointer: this.hintButton.hitArea, keys: ['H'] }, () => this.showHint())
+
     this.uiCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height)
-    for (const object of [this.statusText, ...this.topBar.objects]) {
+    for (const object of [this.statusText, this.hintButton.container, ...this.topBar.objects]) {
       this.cameras.main.ignore(object)
     }
 
@@ -171,10 +245,14 @@ export class Daily extends Phaser.Scene {
     this.discView.reset(this.sim)
     this.syncCameraMembership()
     this.refreshStatus()
+    this.refreshHintButton()
+    // The board is back to `pristine`, so a hint already asked for is still true — redrawn against
+    // the restored discs rather than cleared, or asking for it would cost another three misses.
+    this.drawHint()
   }
 
   private syncCameraMembership(): void {
-    this.uiCamera.ignore([this.background, ...this.board.worldObjects, ...this.discView.worldObjects, ...this.aimView.worldObjects])
+    this.uiCamera.ignore([this.background, this.hintLine, ...this.board.worldObjects, ...this.discView.worldObjects, ...this.aimView.worldObjects])
   }
 
   private worldPoint(pointer: Phaser.Input.Pointer): { x: number; y: number } {
@@ -208,7 +286,7 @@ export class Daily extends Phaser.Scene {
    * A camera left zoomed out is a board that never comes back. */
   private leaveAimCamera(): void {
     const { boardW, boardH } = this.board.metrics
-    if (this.cameras.main.zoom === this.fit.zoom) return
+    if (this.cameraTargetZoom === this.fit.zoom) return
     this.moveCamera(this.fit.zoom, boardW / 2, boardH / 2)
   }
 
@@ -217,6 +295,7 @@ export class Daily extends Phaser.Scene {
   private moveCamera(zoom: number, focusX: number, focusY: number): void {
     const camera = this.cameras.main
     this.cameraTween?.stop()
+    this.cameraTargetZoom = zoom
 
     const from = { zoom: camera.zoom, x: this.focus.x, y: this.focus.y }
     const step = { t: 0 }
@@ -334,6 +413,10 @@ export class Daily extends Phaser.Scene {
     this.shotOutcome = null
     this.done = true
     this.solved = isSolved(this.sim)
+    // Counted on the shot that RESOLVED, not on the one that was fired: a shot still in the air has
+    // not failed yet, and offering help while the discs are moving would be the game calling it early.
+    this.attempts += 1
+    this.refreshHintButton()
 
     // Read BEFORE recording: `recordDailySolved` folds the new streak into `best` itself, so asking
     // afterwards whether this was a record can only ever answer yes.
@@ -391,6 +474,70 @@ export class Daily extends Phaser.Scene {
     })
   }
 
+  /**
+   * Draws the direction of a solving shot, from the disc, and never its power.
+   *
+   * The line runs a fixed distance rather than to where the shot actually stops: how FAR it goes is
+   * the pull, which is the half the player is meant to find. A line ending on the target cluster
+   * would be the answer rather than a hint.
+   *
+   * Solved lazily and kept. `findSolution` walks the generator's own candidate list and stops at the
+   * first shot that clears the board — a few dozen `runToRest` calls for a puzzle that solves on a
+   * few percent of its candidates, i.e. milliseconds. Kept because the board is put back to
+   * `pristine` on every retry, so the answer does not change and re-deriving it would be work done
+   * again for the same result.
+   */
+  private showHint(): void {
+    if (this.solved) return
+    if (!this.hint) this.hint = findSolution(this.pristine, this.simConfig, BOT_LEVELS.hard)
+    if (!this.hint) {
+      // Cannot happen for a shipped day — every one in the catalogue was proved solvable by this same
+      // search. It is handled rather than asserted because the alternative is a button that throws.
+      this.hintButton.setEnabled(false)
+      return
+    }
+    playSfx(SFX.ui)
+    this.drawHint()
+  }
+
+  private drawHint(): void {
+    this.hintLine.clear()
+    const shot = this.hint
+    if (!shot || this.solved) return
+    const disc = this.sim.discs.find((candidate) => candidate.id === shot.discId && candidate.alive)
+    if (!disc) return
+
+    // A fixed reach, in CELLS, so the line says the same thing on every board size and says nothing
+    // at all about how hard to pull.
+    const length = this.board.metrics.tile * HINT_CELLS
+    const toX = disc.x + Math.cos(shot.angle) * length
+    const toY = disc.y + Math.sin(shot.angle) * length
+
+    this.hintLine.lineStyle(HINT_WIDTH, HINT_COLOR, HINT_ALPHA)
+    const step = HINT_DASH + HINT_GAP
+    for (let at = 0; at < length; at += step) {
+      const end = Math.min(at + HINT_DASH, length)
+      this.hintLine.lineBetween(
+        disc.x + Math.cos(shot.angle) * at,
+        disc.y + Math.sin(shot.angle) * at,
+        disc.x + Math.cos(shot.angle) * end,
+        disc.y + Math.sin(shot.angle) * end,
+      )
+    }
+    // A ring on the disc it is a hint ABOUT — with one disc today that is redundant, and it stops
+    // being redundant the moment a puzzle ships with two.
+    this.hintLine.strokeCircle(disc.x, disc.y, disc.r + 5)
+    this.hintLine.lineBetween(toX, toY, toX, toY)
+  }
+
+  /** The button appears once the player has missed enough times to be guessing — see
+   * {@link HINT_AFTER_ATTEMPTS} — and never on a day already solved. */
+  private refreshHintButton(): void {
+    const offer = this.attempts >= HINT_AFTER_ATTEMPTS && !this.solved && !dailyStatus(this.today).solvedToday
+    this.hintButton.container.setVisible(offer)
+    this.hintButton.setEnabled(offer)
+  }
+
   private refreshStatus(): void {
     const status = dailyStatus(this.today)
 
@@ -417,6 +564,9 @@ export class Daily extends Phaser.Scene {
     // instantly, because a resize is not an animation.
     const zoom = this.aiming ? computeAimZoom(this.board.metrics, this.viewportW, this.viewportH) : this.fit.zoom
     this.cameraTween?.stop()
+    // The instant path writes the intent too — otherwise a resize mid-gesture would leave
+    // `cameraTargetZoom` describing a move that no longer happened. See its own comment.
+    this.cameraTargetZoom = zoom
     this.setCamera(zoom, boardW / 2, boardH / 2)
 
     // Sized on the RESTING fit: the press that starts a gesture always happens at that zoom, and
@@ -449,7 +599,26 @@ export class Daily extends Phaser.Scene {
     this.topBar.layout(width, height)
     this.statusText.setFontSize(STATUS_FONT_SIZE * scale)
 
+    /**
+     * The status and, under it, the hint button — as ONE block centred in the band, so the status does
+     * not jump when the button appears three attempts in.
+     *
+     * Reserved rather than measured, the same rule the board's own speech row keeps: the button's row
+     * is always part of the block's height, whether or not the button is currently in it.
+     */
+    const buttonH = buttonHeight('compact', scale)
+    const gap = 10 * scale
+    const blockH = this.statusText.height + gap + buttonH
     const status = bandCenter(this.bands.trailing)
-    this.statusText.setPosition(status.x, status.y - this.statusText.height / 2)
+    // Centred in the band where it fits, and pushed off the bottom EDGE where it does not — the same
+    // rule and the same reason as the board's own HUD: what is at the bottom of this block is a tap
+    // target, and the bottom inset is the home indicator's. Measured at 360x640 the block wanted the
+    // last 10px of the screen.
+    const floor = height - screenInsets(this).bottom - 8 * scale
+    const top = Math.max(this.topBar.height(this) + 8 * scale, Math.min(status.y - blockH / 2, floor - blockH))
+
+    this.statusText.setPosition(status.x, top)
+    this.hintButton.layout(status.x, top + this.statusText.height + gap + buttonH / 2, scale)
+    this.refreshHintButton()
   }
 }

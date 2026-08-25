@@ -33,6 +33,8 @@ const BAND_WIDTH = 3
 const BAND_ALPHA = 0.5
 const BAND_DASH = 11
 const BAND_GAP = 8
+/** The ring drawn on the finger, closing the band off — see `show`. */
+const BAND_END_RADIUS = 6
 
 const RAY_MIN_WIDTH = 3
 const RAY_MAX_WIDTH = 9
@@ -123,10 +125,30 @@ export function createAimView(scene: Phaser.Scene): AimView {
     }
   }
 
+  /**
+   * The head of the aim ray, as a FILLED triangle.
+   *
+   * It was two open strokes meeting at a point, and at the ray's own line width that is a V with a
+   * notch out of the middle of it and two square stroke caps for barbs — reported from a phone as an
+   * "обгрызаная стрелка", a gnawed arrow. A stroked head also changes shape with the power, because
+   * the strokes thicken while the head's length does not, so at full power the barbs merge into a
+   * blob and at low power they are two hairs. A filled triangle is one shape at every power and reads
+   * as an arrow at 20px, which is the size this is actually drawn at on a phone.
+   *
+   * Scaled with the ray so the head stays in proportion to the line it ends: a fixed head on a
+   * 9-unit line is a pin on a plank.
+   */
   function drawArrowHead(x: number, y: number, angle: number, color: number, width: number): void {
-    graphics.lineStyle(width, color, RAY_ALPHA)
-    graphics.lineBetween(x, y, x - Math.cos(angle - ARROW_SPREAD) * ARROW_LENGTH, y - Math.sin(angle - ARROW_SPREAD) * ARROW_LENGTH)
-    graphics.lineBetween(x, y, x - Math.cos(angle + ARROW_SPREAD) * ARROW_LENGTH, y - Math.sin(angle + ARROW_SPREAD) * ARROW_LENGTH)
+    const length = ARROW_LENGTH * (0.7 + 0.3 * (width / RAY_MAX_WIDTH))
+    graphics.fillStyle(color, RAY_ALPHA)
+    graphics.fillTriangle(
+      x,
+      y,
+      x - Math.cos(angle - ARROW_SPREAD) * length,
+      y - Math.sin(angle - ARROW_SPREAD) * length,
+      x - Math.cos(angle + ARROW_SPREAD) * length,
+      y - Math.sin(angle + ARROW_SPREAD) * length,
+    )
   }
 
   return {
@@ -146,9 +168,15 @@ export function createAimView(scene: Phaser.Scene): AimView {
       graphics.lineStyle(RING_WIDTH, theme.colors.accent, 0.55 + 0.35 * pulse())
       graphics.strokeCircle(visual.x, visual.y, visual.r + RING_GAP)
 
-      // The band back to the finger.
+      // The band back to the finger, ENDING in a small ring on the finger itself.
+      //
+      // A dashed line simply stops after its last dash, wherever that fell — so the band read as
+      // running off the board and being cut, rather than as reaching the thumb pulling it. The ring
+      // is the terminus: it says the line ends HERE, on purpose, and it is the same shape as the grip
+      // ring at the other end, which makes the pair read as one elastic between two points.
       graphics.lineStyle(BAND_WIDTH, theme.colors.secondary, BAND_ALPHA)
       drawDashedLine(visual.x, visual.y, visual.pointerX, visual.pointerY)
+      graphics.strokeCircle(visual.pointerX, visual.pointerY, BAND_END_RADIUS)
 
       if (visual.cancelled) return
 

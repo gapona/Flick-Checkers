@@ -154,6 +154,17 @@ export function rememberTutorialDone(): void {
   })
 }
 
+/** Whether the menu still needs to point out that its character can be poked. */
+export function mascotHintNeeded(): boolean {
+  return getState().mascotPoked !== true
+}
+
+export function rememberMascotPoked(): void {
+  mutate((state) => {
+    state.mascotPoked = true
+  })
+}
+
 // -- the match in progress ----------------------------------------------------------------------
 
 /** True when there is something for a "Continue" entry point to resume. */

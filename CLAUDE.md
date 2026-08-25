@@ -81,6 +81,7 @@ kinds of thing and are documented separately for that reason.
   `--branch-friction` override the physics from outside so both arms of an A/B come from ONE build.
   Two failures are expected and documented — tanks' долёт (short range IS that branch) and
   artillery's наказание (four discs set wide, so a third of the cone meets nothing). See §11.
+- `npm run test:platform` also now runs `tests/platform/overlays.test.ts` — see its own note below.
 - `npm run verify:content` — the cast as data: every opponent carries all eleven speech triggers
   with two-or-more distinct lines, names a voice profile the sprite actually has, and sits on a ladder
   whose numbers point the way its order claims; the unlock gate opens exactly one rung at a time;
@@ -157,6 +158,18 @@ kinds of thing and are documented separately for that reason.
   wrong only in landscape and only on some steps. It walks every step at three viewports, counting
   how many actually had a spotlight so the overlap check cannot pass on a tour that rings nothing.
   It is also the ONLY file here that seeds a save with no tour chapters seen — see "The Guided Tour".
+
+  **`tests/platform/overlays.test.ts` guards the RENDER ORDER, and it exists because three screens
+  had a dead gear button.** `SceneManager.render()` walks its scene array forward and `scene.launch()`
+  never reorders it, so an overlay registered EARLIER in `config.ts` than the page that launches it is
+  drawn underneath that page — `Settings` sits before `Shop`, `Tutorial` and `HowToPlay`, and
+  `Confirm` sits before `Tutorial`. Each panel opened, paused its opener and drew itself behind an
+  opaque background, so from the outside the gear did nothing and the screen was now frozen behind a
+  dialog nobody could see. The assertion is the ORDER rather than a screenshot: a screenshot proves
+  one panel is visible today, the order is the property that holds for the next overlay too.
+  `layout.test.ts` already owns the pixels. The same file carries the other defects from that session
+  — the aim camera left zoomed out, the round pill over the coin badge, the hot-seat status capsule
+  off-centre, the tutorial's new Back button, and the daily's hint.
 - `npm run test:gameplay` — `node --test` over `tests/gameplay/*.test.ts`: the turn matrix of §3 (a
   scenario per flag of `RuleSet`), §4's five branches including the stack threshold, the guided
   tour's chapter bookkeeping (`tour.test.ts` — what a save remembers and what `migrate` does with a
@@ -2034,6 +2047,64 @@ stack taller. Redo the addition in `Settings.layout`'s comment before adding a f
 about it. A returning player is offered the tutorial once more, which is the right failure — the
 alternative is inventing a history nobody recorded.
 
+## What one playtest changed
+
+A single session with a player who had never seen the game produced about twenty reports, and the
+split between them is the useful part: **five were defects, and the rest were the game failing to say
+things it already knew.** The defects are in "Known Issues Fixed". What the rest changed:
+
+- **The tour points at the LESSONS**, second card, right after the hello. It deliberately did not —
+  "a step explaining a button that disappears the moment it is used is wrong for every later visit" —
+  and that argument is true of a button in general and false of this one, because the menu chapter
+  only ever runs on a save that has not seen it, which is the same save on which `tutorialDone` is
+  false and the button is on screen. The player walked all six cards, played a match, found the six
+  lessons later by accident, and reported that there was no way into them from the guide.
+- **The menu's own button says `tutorialPlay`, not `howToPlay`.** It starts the lessons while the same
+  two words behind the gear open the reference page — two destinations under one name.
+- **The tour and the tutorial both have a Back**, disabled on the first card rather than absent: the
+  card's height is measured from its contents, and a control that appears at step two would move
+  everything under it. In the tour that forced a decision about the answer row — see `Coach`'s own
+  note on why three tokens are one row where the width pays and two where it does not, and why the
+  tutorial's pair SHRINKS to its band rather than stacking (stacking fixed the width and broke the
+  height: 294 units of block in a 360-tall landscape).
+- **The Daily button shows the STREAK once today is solved**, and the date until then. The date
+  answers "is this today's puzzle?", which is settled the moment it is solved and the button is
+  disabled; the streak is then the thing that just changed. It showed the date in both states, and
+  the report came from a player who had just been told "1 days in a row" on the result panel, pressed
+  Menu, and found the number gone. The streak's two other homes are both INSIDE the daily.
+- **The daily offers a direction after three misses** (`daily/puzzle.ts`'s `findSolution`, and
+  `Daily`'s hint). A one-shot puzzle with an unlimited retry is a search, and a search with no
+  feedback between attempts is flailing — "может оно как в сапере давало бы советы". It shows the
+  DIRECTION and never the power: §8's rule is about things you buy, but its spirit is what stops this
+  being a Solve button, and the pull is the half a player actually gets better at. Re-derived from the
+  generator's own candidate list rather than shipped in the catalogue — ~8ms measured in a browser,
+  against the four seconds the generator spends counting them all — so `puzzles.json` is unchanged and
+  the hint cannot disagree with the proof, because it IS the proof stopped early.
+- **The hot-seat capsule's border is the active side's own disc colour**, and the match tour's turn
+  card says so (`coachTurnTwoBody`). "Player 2 shoots" is a true sentence that answers the wrong
+  question: two people look at one board from opposite sides, §2 chose the top-down projection
+  precisely so the board never flips, and nothing said which colour Player 2 owns. Asked outright —
+  "как понять кто 1 игрок, а кто 2?" — alongside two more questions about the turn rules, which the
+  same card now states.
+- **The menu character has a pointing hand until it is poked once** (`SaveState.mascotPoked`). It
+  bobs, tilts and blinks and was still reported as not looking pressable, which is the failure mode of
+  every easter egg that is only an easter egg. Same `icon-hand` the tour taps controls with, so the
+  vocabulary is already learned.
+- **The aim ray's head is a filled triangle and the pull band ends in a ring.** The head was two open
+  strokes meeting at a point — a V with a notch and two square caps for barbs, reported as an
+  "обгрызаная стрелка" — and it changed shape with the power, because the strokes thickened while the
+  head's length did not. The band simply stopped after its last dash, wherever that fell, so it read
+  as running off the board and being cut rather than as reaching the thumb pulling it.
+- **The rules page fades at whichever end still has copy beyond it.** A camera viewport is a hard
+  clip, so a paragraph running past the bottom is sliced across the middle of a line of type directly
+  above the two buttons. Banded rather than `fillGradientStyle`, which is WebGL-only in this build and
+  would degrade to an opaque bar under the Canvas fallback.
+
+**What was NOT changed, and why.** Three of the reports were about the turn rules — a knockout not
+buying another shot, losing your own disc costing two, losing two at once still costing two — and all
+three are the shipped rules working exactly as `game/round.ts` documents them. The fix for those is
+saying them, not changing them.
+
 ## The Guided Tour
 
 `scenes/Coach.ts` dims a screen, cuts a hole around one control, taps inside the hole with a pointing
@@ -3099,6 +3170,44 @@ mechanism each one describes is unchanged.
 
 App bugs:
 
+- **The gear did nothing on three screens, and the tutorial's Finish did nothing on a fourth.**
+  One cause, and it is a property of Phaser rather than of any of the four: `SceneManager.render()`
+  loops `this.scenes` in FORWARD array order — the order `config.ts` registers them in — and
+  `scene.launch()` does not touch it. `Settings` is registered at index 9; `Shop`, `Confirm`,
+  `Tutorial`, `HowToPlay` and `Coach` all come after. So opening the settings panel from the shop,
+  the tutorial or the rules page started the scene, paused its opener and drew the panel UNDERNEATH
+  the opaque page that had asked for it, and the tutorial's ending `Confirm` went the same way. The
+  screen was then frozen behind an invisible dialog, which is the worst version of this: the button
+  reads as dead AND the page stops responding. Reported three separate ways from a phone.
+  **The fix is not a reordering of `config.ts`** — that repairs today's list and breaks silently the
+  next time a screen is appended after an overlay, which is the natural place to append one. Each
+  overlay raises itself instead, from `platform/lifecycle.ts`'s `raiseOverlay`, which lives beside
+  the list of what an overlay IS so the two facts cannot drift. → `tests/platform/overlays.test.ts`
+- **A swipe could shrink the board for the rest of the round.** Reported as "мне удалось как-то
+  махнуть пальцем и поле уменьшилось". `enterAimCamera`/`leaveAimCamera` are tweens, and **a tween
+  writes nothing at the moment it is created** — its first value lands on the next update. The leave
+  guard asked `cameras.main.zoom === fit.zoom`, so a press and a second finger inside ONE input tick
+  ran: press starts the zoom-out tween (camera has not moved yet), `bindDrag` cancels the gesture,
+  `leaveAimCamera` reads an unmoved camera, concludes there is nothing to undo, and returns — leaving
+  the zoom-out running with nothing to reverse it. `cameraTargetZoom` records the INTENT and the
+  guard reads that. All three board scenes carried the identical code and all three are fixed.
+  → "Aiming", `Game`/`Daily`/`Tutorial`
+- **The round pill was drawn across the coin badge at a four-digit balance**, and the badge plate was
+  a size behind its own number. Both readouts in `ui/chrome.ts`'s top bar are sized from their own
+  content, and neither was re-placed when the content changed: `setCoins` wrote the text and left the
+  plate at the width it was last drawn, while `setRound` wrote `1 / 5` into a `Text` that had been
+  positioned while it was still EMPTY — centred as if zero pixels wide, then growing symmetrically
+  out of that centre. Measured at 360px with 2325 coins: badge to x=167, `1 / 5` from x=163.
+  Reported as "налазит". The pill now sits in the free span between the badge and the gear, and both
+  setters re-place what they resize. Same defect class as the status capsule drawn around the
+  PREVIOUS status. → "The Board's HUD"
+- **The hot-seat status capsule sat 25px right of the board's centre line.** Two people at one board
+  have no third face to look at, so `Game` hides the opponent portrait — "hidden rather than skipped,
+  so the HUD's layout arithmetic is unchanged", said the comment, and that was the bug. The capsule
+  is centred on what is LEFT of the band after the portrait's column, so reserving a column nothing
+  occupies pushes it right and leaves a hole where the face would be. Reported as "не по центру",
+  about the capsule — the board was centred throughout. `Game.portraitColumn()` returns 0 outside
+  solo play and is now the single place that sum is written. → "The Opponents"
 - **The menu mascot was drawn under the lowest button on every short portrait phone.** Reported from
   a device, not measured into existence: the sprite crossed the Daily button by 26px at 320x568, 24px
   at 360x640 and 25px at 375x664. It is sized at 0.3 of the viewport's SHORTER side, which on any
