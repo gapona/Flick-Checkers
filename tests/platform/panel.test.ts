@@ -69,6 +69,41 @@ describe('the landscape side panel', () => {
     await game.page.close()
   })
 
+  /**
+   * Blitz is a mode whose whole rule is a clock, and the panel used to draw no clock at all.
+   *
+   * The countdown was appended to the status capsule, and the panel hides that capsule — so the
+   * number was on screen in portrait and nowhere in landscape, which is the layout every desktop
+   * gets. Reported from the web build.
+   */
+  it('counts the blitz clock down in the active block', async () => {
+    const game = await open(harness, { width: 1280, height: 720, save: { ...DEFAULT_SAVE, rules: 'blitz' } })
+    await startMatch(game)
+    await waitForSettled(game.page)
+
+    const read = () =>
+      game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Game') as unknown as {
+          rules: { shotClockMs: number }
+          round: { turn: string }
+          playerBlock: { text: { sub: string } }
+        }
+        return { clock: scene.rules.shotClockMs, turn: scene.round.turn, sub: scene.playerBlock.text.sub }
+      })
+
+    const first = await read()
+    assert.ok(first.clock > 0, 'the seeded save must actually be the blitz set')
+    assert.equal(first.turn, 'player', 'the clock only runs on a human turn')
+    assert.match(first.sub, /\d/, `the player's block must carry the countdown, got "${first.sub}"`)
+
+    // And it MOVES. A number that never changes is a label, and the mode is played on the change.
+    await game.page.waitForTimeout(1200)
+    const later = await read()
+    assert.notEqual(later.sub, first.sub, `the countdown must tick, stayed at "${first.sub}"`)
+
+    await game.page.close()
+  })
+
   it('nothing the panel carries is also drawn by the top bar', async () => {
     const game = await open(harness, { width: 1280, height: 720, save: DEFAULT_SAVE })
     await startMatch(game)

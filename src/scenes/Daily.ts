@@ -538,23 +538,32 @@ export class Daily extends Phaser.Scene {
     this.hintButton.setEnabled(offer)
   }
 
+  /**
+   * What the band says — and then the band laid out AROUND it.
+   *
+   * **The re-layout is the fix for a shipped overlap, not a precaution.** The hint button's y is
+   * `top + statusText.height + gap`, and `bindLayout` runs its first pass from `create()`, where
+   * this text is still EMPTY — `reset()` is the line after it. So the button was placed against the
+   * height of an empty `Text` and drawn straight through the second line of the status, on every
+   * phone that is never resized after boot. Reported with a screenshot of the hint button sitting
+   * across "Clear the board in one shot".
+   *
+   * Same defect as `Game`'s status capsule drawn around the PREVIOUS status, and the same rule: a
+   * block measured from its own text has to be re-measured when the text changes.
+   */
   private refreshStatus(): void {
     const status = dailyStatus(this.today)
+    const lines =
+      this.done && this.solved
+        ? [t('dailySolved'), t('dailyStreak', { n: status.streak })]
+        : this.done
+          ? [t('dailyMissed'), t('tapToPlayAgain')]
+          : status.solvedToday
+            ? [t('dailyAlreadyDone'), t('dailyStreak', { n: status.streak })]
+            : [t('dailyTitle'), t('dailyGoal')]
 
-    if (this.done && this.solved) {
-      this.statusText.setText([t('dailySolved'), t('dailyStreak', { n: status.streak })].join('\n'))
-      return
-    }
-    if (this.done) {
-      this.statusText.setText([t('dailyMissed'), t('tapToPlayAgain')].join('\n'))
-      return
-    }
-    if (status.solvedToday) {
-      this.statusText.setText([t('dailyAlreadyDone'), t('dailyStreak', { n: status.streak })].join('\n'))
-      return
-    }
-
-    this.statusText.setText([t('dailyTitle'), t('dailyGoal')].join('\n'))
+    this.statusText.setText(lines.join('\n'))
+    this.layout(this.scale.width, this.scale.height)
   }
 
   private applyCamera(): void {

@@ -210,7 +210,7 @@ describe('the tutorial', () => {
     await game.page.close()
   })
 
-  it('an unsolved lesson can still be left, and the board resets after a failure', async () => {
+  it('an unsolved lesson can still be left, and a failure waits for a tap before the board resets', async () => {
     const game = await open(harness, { width: 390, height: 844, save: DEFAULT_SAVE })
     await game.page.waitForTimeout(500)
     const enter = await buttonAt(game.page, 'MainMenu', 'tutorialButton')
@@ -258,17 +258,36 @@ describe('the tutorial', () => {
       disc.vx = 0
       disc.vy = 200
     })
-    // The shot, then the hint, then `RESET_DELAY_MS` before the board comes back.
+    // The shot, and then the hint — which STAYS. It used to be swept away 1100ms later, which is
+    // not long enough to read the one line that says what the failure just demonstrated.
     await game.page.waitForTimeout(3000)
+
+    const held = await game.page.evaluate(() => {
+      const scene = window.__game!.scene.getScene('Tutorial') as unknown as {
+        resetting: boolean
+        passed: boolean
+        lineText: { text: string }
+      }
+      return { resetting: scene.resetting, passed: scene.passed, line: scene.lineText.text }
+    })
+    assert.equal(held.passed, false, 'a failed shot must not be scored as a pass')
+    assert.equal(held.resetting, true, 'the hint must still be up seconds after the failure')
+    assert.match(held.line, /try again/i, 'the hint must say how to get the board back')
+
+    // A tap anywhere — here on the board, where a press cannot become an aim while the hint is up.
+    await game.click(195, 300)
+    await game.page.waitForTimeout(300)
 
     const after = await game.page.evaluate(() => {
       const scene = window.__game!.scene.getScene('Tutorial') as unknown as {
         sim: { discs: { alive: boolean }[] }
+        resetting: boolean
         passed: boolean
       }
-      return { alive: scene.sim.discs.filter((d) => d.alive).length, passed: scene.passed }
+      return { alive: scene.sim.discs.filter((d) => d.alive).length, passed: scene.passed, resetting: scene.resetting }
     })
     assert.equal(after.passed, false, 'a failed shot must not be scored as a pass')
+    assert.equal(after.resetting, false, 'a tap must put the board back')
     assert.equal(after.alive, before, 'the board must be put back after a failure')
 
     await game.page.close()
@@ -378,5 +397,54 @@ describe('the rules page', () => {
     assert.equal(resumed, mark, 'the same board should be back, not a fresh one')
 
     await playing.page.close()
+  })
+
+  /**
+   * The reported bug: "show me around does not take me to the menu".
+   *
+   * The button clears the tour's chapters and leaves, and only `MainMenu` and `Game` ever ask
+   * `shouldRunTour` — while the gear that reaches this page is on every screen. Opened from the
+   * modes list (or the shop, or the daily) a plain `navBack` therefore landed the player exactly
+   * where they came from, with the chapters wiped and no tour anywhere. Reached through the same
+   * two taps a player makes.
+   */
+  it("sends 'Show me around' to a screen the tour has a chapter for", async () => {
+    const game = await open(harness, { width: 390, height: 844, save: DEFAULT_SAVE })
+    await game.page.waitForTimeout(500)
+
+    const newMatch = await buttonAt(game.page, 'MainMenu', 'newMatchButton')
+    await game.click(newMatch.x, newMatch.y)
+    await game.waitForScene('Modes')
+
+    await game.page.evaluate(() => window.__game!.scene.getScene('Modes').scene.launch('Settings', { opener: 'Modes' }))
+    await game.waitForScene('Settings')
+    await waitForOverlay(game.page, 'Settings')
+    const help = await buttonAt(game.page, 'Settings', 'helpButton')
+    await game.click(help.x, help.y)
+    await game.waitForScene('HowToPlay')
+    await game.page.waitForTimeout(400)
+
+    const tour = await buttonAt(game.page, 'HowToPlay', 'tourButton')
+    await game.click(tour.x, tour.y)
+    // The TOUR, not the menu: the menu is PAUSED the moment the tour opens over it, and
+    // `waitForScene` asks for an active scene (`harness.ts`'s `expectScene` note). Which screen it
+    // landed on is then the coach's own opener.
+    await game.waitForScene('Coach')
+    assert.equal(
+      await game.page.evaluate(() => (window.__game!.scene.getScene('Coach') as unknown as { openerKey: string }).openerKey),
+      'MainMenu',
+      'the tour has to open over a screen that has a chapter',
+    )
+
+    // And the screen it left is GONE. Every scene here is full-page and they composite in
+    // registration order, so a `Modes` left running would be drawn over the menu the tour is
+    // ringing — with the tour's own card on top of that.
+    assert.equal(
+      await game.page.evaluate(() => window.__game!.scene.getScene('Modes').scene.isActive()),
+      false,
+      'the modes list must not still be running under the menu',
+    )
+
+    await game.page.close()
   })
 })

@@ -143,20 +143,30 @@ export class HowToPlay extends Phaser.Scene {
      *
      * **It does not launch `Coach` itself.** The tour rings controls on the screen it is about, and
      * this page has none of them — so the button forgets the chapters (`game/tour.ts`) and LEAVES,
-     * and whichever host the back button lands on opens the tour in its own `create()`. That is one
-     * seam rather than a branch per caller, and it means the match half opens over a board and the
-     * menu half over the menu, whichever door the player came in through.
+     * and the host it lands on opens the tour in its own `create()`.
      *
-     * Unconditional, unlike the lessons beside it: `navBack` restores `Game` with its `{ resume:
-     * true }` return data, so a player who asks mid-match comes back to the same board with the tour
-     * over it. Nothing is lost and nothing is restarted.
+     * **It lands on a screen that HAS a chapter, which a plain `navBack` does not.** Only `MainMenu`
+     * and `Game` ask `shouldRunTour`, and the gear is on every screen — so anybody who opened this
+     * page from the modes list, the shop or the daily got the chapters cleared, the back button's
+     * ordinary destination, and no tour at all. Reported exactly that way: "show me around does not
+     * take me to the menu". So the match half is `navBack` (which restores `Game` with its
+     * `{ resume: true }` return data, tour and match both intact), and everything else goes home —
+     * `navMarkRoot` first, because this is a jump rather than a step back and a stale entry would
+     * outlive the page that pushed it.
+     *
+     * Unconditional, unlike the lessons beside it: neither branch can lose a saved match.
      */
     this.tourButton = gameButton(this, { size: 'compact', variant: 'plum', label: t('tourReplay') })
     bindAction(this, 'replayTour', { pointer: this.tourButton.hitArea, keys: ['T'] }, () => {
       if (this.leaving) return
       this.leaving = true
       resetTour()
-      navBack(this)
+      if (navReturnsTo(this) === 'Game') {
+        navBack(this)
+        return
+      }
+      navMarkRoot(this)
+      this.scene.start('MainMenu')
     })
 
     if (navReturnsTo(this) !== 'Game') {

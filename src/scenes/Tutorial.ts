@@ -27,10 +27,6 @@ const TITLE_FONT_SIZE = 20
 const LINE_FONT_SIZE = 15
 /** Between the title, the line and the button, in design units. */
 const ROW_GAP = 10
-/** How long a failed attempt is left on screen before the board goes back. Longer than `Daily`'s
- * 700ms because the point of the pause is to WATCH the mistake — a disc leaving the board is still
- * visibly falling for a moment after the solver rests. */
-const RESET_DELAY_MS = 1100
 /** Matches `Game` and `Daily`. Same gesture, same board, same apron. */
 const AIM_CAMERA_MS = 130
 const BACKGROUND_OVERSCAN = 1.04
@@ -38,6 +34,10 @@ const BOARD_SIZE = 8
 /** How far the button pair may be shrunk to fit a narrow band before it stops being readable.
  * `MainMenu`'s own floor, for the same trade. */
 const MIN_BUTTON_SCALE = 0.7
+/** How far the whole coach block may be shrunk to fit the band under the board before it stops
+ * being readable — `Game`'s own `MIN_HUD_SHRINK`, for the same trade on the same phones. A band
+ * that needs less than this is a band the block has to overhang instead. */
+const MIN_BLOCK_SHRINK = 0.78
 
 const TITLE_COLOR = '#ffc23c'
 const LINE_COLOR = '#e6d8f5'
@@ -69,8 +69,9 @@ export interface TutorialData {
  *
  * One button, always live: `Skip` before the goal is met and `Next` after it. A tutorial that will
  * not let go until you perform is a tutorial people quit the game inside. A failed attempt is not a
- * dead end either — the board puts itself back after a beat and the hint says what the failure just
- * demonstrated, which is where lesson three does its actual teaching.
+ * dead end either — the hint says what the failure just demonstrated, which is where lesson three
+ * does its actual teaching, and the board goes back when the player taps rather than on a timer
+ * (see {@link dismissHint}).
  *
  * ## The aim camera is here too
  *
@@ -98,9 +99,9 @@ export class Tutorial extends Phaser.Scene {
   private shotsTaken = 0
   /** The goal is met; the board is now a trophy rather than a puzzle and the aim gate is shut. */
   private passed = false
-  /** A failed attempt is on screen and the board is about to be put back. Also shuts the gate —
-   * without it a fast player can start an aim on discs that are one `delayedCall` from being
-   * replaced, and the shot lands on a board nobody was looking at. */
+  /** A failed attempt is on screen with its hint, and the board goes back on the next tap. Also
+   * shuts the aim gate — a shot fired at the mistake still standing on the board would land on a
+   * position that is about to be replaced, on a board nobody was looking at. */
   private resetting = false
 
   private topBar!: TopBar
@@ -213,6 +214,11 @@ export class Tutorial extends Phaser.Scene {
       this.cameras.main.ignore(object)
     }
 
+    // A failed attempt waits for the player rather than for a clock — see {@link dismissHint}. On
+    // the scene's own input rather than on the board, because "tap anywhere" is what the hint says
+    // and the board is only the middle of the screen.
+    this.input.on(Phaser.Input.Events.POINTER_UP, () => this.dismissHint())
+
     bindDrag(this, 'aimTutorial', this.board.hitTarget, {
       onStart: (pointer) => this.beginAim(pointer),
       onMove: (pointer) => this.updateAim(pointer),
@@ -236,6 +242,28 @@ export class Tutorial extends Phaser.Scene {
     this.actionButton.setVariant('ghost')
     this.actionButton.setLabel(t('tutSkip'))
     this.backButton.setEnabled(index > 0)
+    this.resetBoard()
+    this.say(t(this.lesson.briefKey))
+  }
+
+  /**
+   * The hint stays up until the player is done with it, and then the board goes back.
+   *
+   * **It used to go back on a timer** (1100ms), which is long enough to see a disc finish falling
+   * and nowhere near long enough to READ two sentences of explanation — so the one line in the
+   * lesson that says what the failure just demonstrated was gone before it had been taken in.
+   * Reported that way, and a timer cannot be tuned out of it: the right pause is however long this
+   * particular player needs, which is a number only they have.
+   *
+   * **On the RELEASE, not the press.** `beginAim` refuses while `resetting`, so a press cannot
+   * become an aim — but a press that both dismissed the hint and cleared the gate would let the
+   * same finger start a shot on a board it has not seen yet, and the order the two listeners fire in
+   * is Phaser's business rather than ours. Waiting for the up takes the question away entirely.
+   */
+  private dismissHint(): void {
+    // A paused scene keeps receiving input (see `platform/input.ts`), and the lesson may have been
+    // skipped past or solved since the hint went up.
+    if (!this.resetting || !this.scene.isActive() || this.passed) return
     this.resetBoard()
     this.say(t(this.lesson.briefKey))
   }
@@ -273,13 +301,7 @@ export class Tutorial extends Phaser.Scene {
         // failure sting on lesson three — where losing your own disc is the entire point — reads as
         // the game telling you off for doing the thing it just showed you.
         this.resetting = true
-        this.say(t(this.lesson.hintKey))
-        this.time.delayedCall(RESET_DELAY_MS, () => {
-          // The scene may have been left, or the lesson skipped past, during the delay.
-          if (!this.scene.isActive() || this.passed) return
-          this.resetBoard()
-          this.say(t(this.lesson.briefKey))
-        })
+        this.say(`${t(this.lesson.hintKey)} ${t('tutRetry')}`)
         return
       case 'again':
         return
@@ -538,33 +560,94 @@ export class Tutorial extends Phaser.Scene {
 
     const band = this.bands.trailing
     const centre = bandCenter(band)
+
+    /**
+     * Where the block may stand: below the top bar, above the bottom inset, and — in portrait —
+     * below the BOARD.
+     *
+     * The last of those is the one that was missing. `band.y` is the board's bottom edge in
+     * portrait and zero in landscape, so taking the larger of it and the bar's own ceiling is one
+     * expression for both orientations.
+     */
+    const ceiling = Math.max(this.topBar.height(this) + 8 * scale, band.y)
+    // …and clear of the BOTTOM edge as well. In portrait the trailing band runs to the last pixel of
+    // the viewport, so a block that fills it puts a tap target on the home indicator: measured at
+    // 360x640, the back button ended 1px from the edge. Same clamp, same reason, as the board's HUD.
+    const floor = height - screenInsets(this).bottom - 8 * scale
+    const room = floor - ceiling
+
+    /**
+     * The block is FITTED to that room, not merely centred in it — and a short phone is why.
+     *
+     * `uiScale` reads the WIDTH, which is the right question for text and the wrong one for a stack
+     * of rows whose room is whatever a square board left over VERTICALLY. Measured at 375x664 (a
+     * 1.77:1 phone, where the square board leaves a 152px band against a block that wants ~170): the
+     * clamp below pushed the block up until its title was drawn across the board's bottom rank, and
+     * the report was a screenshot of exactly that — "должно быть внизу".
+     *
+     * **Measured each pass rather than divided once**: a `Text`'s height quantises to whole lines, so
+     * the block does not shrink smoothly with the scale — a smaller font can drop a wrapped line and
+     * come in well under. Same finding, and the same three passes, as `Game.layoutHud`'s own
+     * `measureTrailingStack`.
+     *
+     * `MIN_BLOCK_SHRINK` is a real floor: past it the hint is too small to read, and an unreadable
+     * lesson is worse than one that overlaps the board it is about.
+     */
+    let blockScale = scale
+    let block = this.measureBlock(width, band, blockScale, scale)
+    for (let pass = 0; pass < 3 && block.height > room; pass += 1) {
+      const next = Math.max(scale * MIN_BLOCK_SHRINK, blockScale * (room / block.height))
+      if (next >= blockScale) break
+      blockScale = next
+      block = this.measureBlock(width, band, blockScale, scale)
+    }
+
+    /**
+     * Centred in what is left, and pushed off the bottom edge when it still does not fit.
+     *
+     * **The ceiling is landscape's, and without it the coach runs under the gear.** In landscape the
+     * band is the full-height strip beside the board and the top bar crosses it, with the gear
+     * sitting in the trailing one. Measured at 740x360: the block is about 220 tall in a 360 band, so
+     * centring alone put its title at y 70 against a gear occupying 28 to 92.
+     */
+    const top = Math.max(ceiling, Math.min(centre.y - block.height / 2, floor - block.height))
+    const gap = ROW_GAP * blockScale
+
+    this.titleText.setPosition(centre.x, top)
+    this.lineText.setPosition(centre.x, top + this.titleText.height + gap)
+    const rowY = top + block.height - block.rowH / 2
+    const rowLeft = centre.x - block.rowW / 2
+    this.backButton.layout(rowLeft + block.backW / 2, rowY, block.rowScale)
+    this.actionButton.layout(rowLeft + block.backW + ROW_GAP * block.rowScale + block.actionW / 2, rowY, block.rowScale)
+  }
+
+  /**
+   * Sizes the coach block at one scale and reports what it came to.
+   *
+   * Sizing and measuring are the same pass on purpose: a `Text`'s height is only knowable once its
+   * font size and wrap width are set, so anything that wants the height has to have written both
+   * first. The caller may therefore call this several times, and the LAST call is what stands.
+   *
+   * `uiScale` is passed separately from the block's own scale because the two answer different
+   * questions: the block's scale is how far it has been shrunk to fit its band, while the band's own
+   * padding is screen furniture and stays at the screen's scale.
+   */
+  private measureBlock(
+    width: number,
+    band: { x: number; y: number; width: number; height: number },
+    blockScale: number,
+    scale: number,
+  ): { height: number; rowH: number; rowW: number; rowScale: number; backW: number; actionW: number } {
     // The band is the full viewport width in portrait and a narrow side strip in landscape, so the
     // wrap has to be the SMALLER of the two rules — the content column keeps a desktop from
     // stretching one sentence across a metre, the band keeps a landscape phone inside its strip.
     const wrap = Math.max(120, Math.min(contentColumn(width), band.width - 24 * scale))
-
-    this.titleText.setFontSize(TITLE_FONT_SIZE * scale)
+    this.titleText.setFontSize(TITLE_FONT_SIZE * blockScale)
     this.titleText.setWordWrapWidth(wrap)
-    this.lineText.setFontSize(LINE_FONT_SIZE * scale)
+    this.lineText.setFontSize(LINE_FONT_SIZE * blockScale)
     this.lineText.setWordWrapWidth(wrap)
 
-    const gap = ROW_GAP * scale
-    // From the TOKEN, not from `actionButton.height`, which is still at the previous scale until
-    // `layout()` runs on it two lines below — see `buttonHeight`'s own note.
-    /**
-     * Back and the action, side by side — or stacked where the band is too narrow for the pair.
-     *
-     * **The row height is the TALLER of the two tokens**, not the action's. `icon` is 64 design units
-     * against `compact`'s 56, so measuring the block by the action alone left the back button hanging
-     * 8 units past the bottom of it — which on a 360x640 phone is one pixel of clearance from the
-     * edge of the screen, and on the tour's own ring around it would have been visible as a cut.
-     *
-     * **And landscape needs the stack.** The trailing band there is a side strip beside the board:
-     * 198 units wide at 740x360 against a 242-unit pair, so the row ran 22px off the right of the
-     * viewport. Height is what landscape has plenty of, so the pair becomes a column — the action
-     * first, Back under it, which is the order `scenes/Coach.ts` settled on for the same reason.
-     */
-    const wanted = buttonWidth('icon', scale) + gap + buttonWidth('compact', scale)
+    const gap = ROW_GAP * blockScale
     /**
      * The pair SHRINKS to the band rather than stacking or overflowing, and both alternatives were
      * tried before this.
@@ -575,43 +658,27 @@ export class Tutorial extends Phaser.Scene {
      * the wrapped hint came to 294 units in a 360-tall screen whose top bar already owns the first 96,
      * and the block simply ran off the bottom.
      *
-     * Shrinking is exact here in one division, unlike the side panel's own pairs: every token in this
-     * kit is `SIZES[size].w * scale`, so the row's width is strictly proportional to the scale and
-     * there is no text metric in it to quantise. Legibility is what it costs and reachability is not —
-     * `gameButton` floors every hit area at `MIN_TOUCH_TARGET` however small the face is drawn.
+     * Exact in one division, unlike the side panel's own pairs: every token in this kit is
+     * `SIZES[size].w * scale`, so the row's width is strictly proportional and there is no text metric
+     * in it to quantise. Legibility is what it costs and reachability is not — `gameButton` floors
+     * every hit area at `MIN_TOUCH_TARGET` however small the face is drawn.
      */
-    const rowScale = Math.max(scale * MIN_BUTTON_SCALE, Math.min(scale, (scale * (band.width - 16 * scale)) / wanted))
+    const wanted = buttonWidth('icon', blockScale) + gap + buttonWidth('compact', blockScale)
+    const rowScale = Math.max(blockScale * MIN_BUTTON_SCALE, Math.min(blockScale, (blockScale * (band.width - 16 * scale)) / wanted))
     const actionW = buttonWidth('compact', rowScale)
     const backW = buttonWidth('icon', rowScale)
-    const rowW = backW + ROW_GAP * rowScale + actionW
     // The TALLER of the two tokens: `icon` is 64 design units against `compact`'s 56, so measuring the
     // block by the action alone left the back button hanging 8 units past the bottom of it — one pixel
     // from the edge of a 360x640 phone, and a cut through the guided tour's ring around it.
     const rowH = Math.max(buttonHeight('compact', rowScale), buttonHeight('icon', rowScale))
-    const blockHeight = this.titleText.height + gap + this.lineText.height + gap + rowH
 
-    /**
-     * Centred in the band, then pushed clear of the top bar.
-     *
-     * **The clamp is landscape's, and without it the coach runs under the gear.** In portrait the
-     * trailing band is the strip BELOW the board and the top bar is nowhere near it, so this does
-     * nothing. In landscape the band is the full-height strip beside the board — and the top bar
-     * crosses it, with the gear sitting in the trailing one and the coin badge in the leading one.
-     * Measured at 740x360: the block is about 220 tall in a 360 band, so centring alone put its
-     * title at y 70 against a gear occupying 28 to 92.
-     */
-    const ceiling = this.topBar.height(this) + 8 * scale
-    // …and clear of the BOTTOM edge as well. In portrait the trailing band runs to the last pixel of
-    // the viewport, so a block that fills it puts a tap target on the home indicator: measured at
-    // 360x640, the back button ended 1px from the edge. Same clamp, same reason, as the board's HUD.
-    const floor = height - screenInsets(this).bottom - 8 * scale
-    const top = Math.max(ceiling, Math.min(centre.y - blockHeight / 2, floor - blockHeight))
-
-    this.titleText.setPosition(centre.x, top)
-    this.lineText.setPosition(centre.x, top + this.titleText.height + gap)
-    const rowY = top + blockHeight - rowH / 2
-    const rowLeft = centre.x - rowW / 2
-    this.backButton.layout(rowLeft + backW / 2, rowY, rowScale)
-    this.actionButton.layout(rowLeft + backW + ROW_GAP * rowScale + actionW / 2, rowY, rowScale)
+    return {
+      height: this.titleText.height + gap + this.lineText.height + gap + rowH,
+      rowH,
+      rowW: backW + ROW_GAP * rowScale + actionW,
+      rowScale,
+      backW,
+      actionW,
+    }
   }
 }

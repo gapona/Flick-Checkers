@@ -497,11 +497,36 @@ describe('the layout holds at every shape', () => {
       await game.page.waitForTimeout(700)
       await assertLaidOut(game, `${at} Tutorial`)
 
+      /**
+       * And in portrait the coach block stands BELOW the board, not on it.
+       *
+       * `assertLaidOut` cannot see this: the board is a baked world object with no `input` and no
+       * text, so it is not in the display list this file walks. The block was pushed up over the
+       * board's bottom rank on any phone whose band is shorter than the block wants — 152px against
+       * ~170 at 375x664 — and the report was a screenshot of the lesson title drawn across the last
+       * two rows of squares.
+       */
+      const stack = await game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Tutorial') as unknown as {
+          bands: { orientation: string; trailing: { y: number } }
+          titleText: { getBounds(): { y: number } }
+        }
+        return { orientation: scene.bands.orientation, boardBottom: scene.bands.trailing.y, top: scene.titleText.getBounds().y }
+      })
+      if (stack.orientation === 'portrait') {
+        assert.ok(
+          stack.top >= stack.boardBottom - 1,
+          `${at}: the lesson block starts at ${stack.top.toFixed(1)}, above the board's bottom edge at ${stack.boardBottom.toFixed(1)}`,
+        )
+      }
+
       // The hint is the longest copy either screen carries, and it is the state the block is at its
-      // tallest in — a layout checked only on the brief is a layout checked on its easy case.
+      // tallest in — a layout checked only on the brief is a layout checked on its easy case. The
+      // retry prompt is part of it: a failed attempt now waits for a tap and says so, which is one
+      // more clause on the line that was already the longest.
       await game.page.evaluate(() => {
         const scene = window.__game!.scene.getScene('Tutorial') as unknown as { say(line: string): void; lesson: { hintKey: string } }
-        scene.say('A disc is out the moment its centre crosses the edge, and a miss at full power runs clean across the board.')
+        scene.say('A disc is out the moment its centre crosses the edge, and a miss at full power runs clean across the board. Tap anywhere to try again.')
       })
       await game.page.waitForTimeout(300)
       await assertLaidOut(game, `${at} Tutorial with a long hint`)
@@ -680,6 +705,35 @@ describe('the layout holds at every shape', () => {
       })
       assert.ok(marks.includes('icon-retake'), `${at}: the retake button should wear a drawn mark`)
       assert.ok(marks.includes('icon-power'), `${at}: the power shot button should wear a drawn mark`)
+
+      await game.page.close()
+    })
+
+    /**
+     * The daily, which nothing in this file covered — and it had the overlap to show for it.
+     *
+     * Its hint button is placed under the status text, measured from that text's HEIGHT, and
+     * `bindLayout`'s first pass runs from `create()` while the text is still empty. The button was
+     * therefore one line too high and drawn across "Clear the board in one shot" on every phone that
+     * never resizes after boot. Reported with a screenshot.
+     */
+    it(`draws the daily puzzle without overlaps at ${at}`, async () => {
+      const game = await open(harness, { ...size, save: DEFAULT_SAVE })
+      const daily = await buttonAt(game.page, 'MainMenu', 'dailyButton')
+      await game.click(daily.x, daily.y)
+      await game.waitForScene('Daily')
+      await game.page.waitForTimeout(900)
+      await assertLaidOut(game, `${at} Daily`)
+
+      // The hint is only offered three misses in, and it is the object the overlap was made of, so
+      // it has to be on screen for this case to be about anything.
+      await game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Daily') as unknown as { attempts: number; refreshHintButton(): void }
+        scene.attempts = 3
+        scene.refreshHintButton()
+      })
+      await game.page.waitForTimeout(200)
+      await assertLaidOut(game, `${at} Daily with its hint offered`)
 
       await game.page.close()
     })

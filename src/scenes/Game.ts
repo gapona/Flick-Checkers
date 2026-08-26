@@ -163,6 +163,10 @@ const BOT_FRAME_BUDGET_MS = 8
 /** How fast the thinking ellipsis animates. */
 const THINKING_DOT_MS = 320
 
+/** Where a blitz clock stops being information and starts being a warning — see
+ * {@link Game.shotClockSeconds}. Two of the mode's five seconds. */
+const CLOCK_ALARM_SECONDS = 2
+
 export interface GameData {
   /** Continue the saved match rather than starting a new one. `MainMenu`'s Continue button sets it;
    * New game does not, and a new game deliberately DISCARDS whatever was saved. */
@@ -1868,19 +1872,43 @@ export class Game extends Phaser.Scene {
     }
 
     const mineTurn = this.round.turn === PLAYER_SIDE
+    // The last seconds of a blitz clock go gold, which is the same alarm the result uses — a
+    // countdown that looks identical at 5 and at 1 is a countdown nobody looks at.
+    const tone = (side: Side): 'normal' | 'alert' => ((this.shotClockSeconds(side) ?? Infinity) <= CLOCK_ALARM_SECONDS ? 'alert' : 'normal')
     // Only ONE of them ever shows a status: two blocks both claiming to be doing something is the
     // ambiguity the lit edge exists to remove.
-    this.playerBlock.setStatus(mineTurn ? this.turnLine(PLAYER_SIDE) : null)
-    this.opponentBlock.setStatus(mineTurn ? null : this.turnLine(BOT_SIDE))
+    this.playerBlock.setStatus(mineTurn ? this.turnLine(PLAYER_SIDE) : null, tone(PLAYER_SIDE))
+    this.opponentBlock.setStatus(mineTurn ? null : this.turnLine(BOT_SIDE), tone(BOT_SIDE))
   }
 
   /** What the active side's block says under its name. The penalty and the shot count are the same
    * facts the capsule carries in the strip layout — they belong to the side that owes the shots. */
   private turnLine(side: Side): string {
-    if (this.twoPlayer) return t(side === PLAYER_SIDE ? 'p1Turn' : 'p2Turn')
-    if (this.lastResolution?.reason === 'penalty') return t('penaltyShots')
-    if (this.round.shotsLeft > 1) return t('shotsLeft', { n: this.round.shotsLeft })
-    return t(side === PLAYER_SIDE ? 'yourShot' : 'opponentShot')
+    const seconds = this.shotClockSeconds(side)
+    const clock = seconds === null ? '' : ` · ${seconds}`
+    if (this.twoPlayer) return t(side === PLAYER_SIDE ? 'p1Turn' : 'p2Turn') + clock
+    if (this.lastResolution?.reason === 'penalty') return t('penaltyShots') + clock
+    if (this.round.shotsLeft > 1) return t('shotsLeft', { n: this.round.shotsLeft }) + clock
+    return t(side === PLAYER_SIDE ? 'yourShot' : 'opponentShot') + clock
+  }
+
+  /**
+   * The blitz countdown for one side, in whole seconds — or `null` when there is no clock on it.
+   *
+   * **The side panel had no timer at all, and blitz is a mode whose entire rule is the timer.** The
+   * strip layout appends the number to the status capsule, and the panel HIDES that capsule (it is
+   * what the two lit blocks replace — `layoutHud`'s `statusText.setVisible(!panelled)`), so the one
+   * fact the mode is played on was on screen in portrait and nowhere in landscape. Reported from the
+   * web build, which is the layout every desktop gets.
+   *
+   * The conditions are `tickShotClock`'s own, restated as a question rather than duplicated as a
+   * rule: the clock runs for whoever owes the shot and is a person, never during a search and never
+   * once the round is decided. A number frozen at 5 under an idle block is worse than no number.
+   */
+  private shotClockSeconds(side: Side): number | null {
+    if (this.rules.shotClockMs <= 0 || this.round.winner || this.botSearch) return null
+    if (side !== this.round.turn || side !== this.humanSide()) return null
+    return Math.max(0, Math.ceil(this.shotClockLeft / 1000))
   }
 
   /**

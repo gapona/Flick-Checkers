@@ -110,8 +110,9 @@ kinds of thing and are documented separately for that reason.
   on the world origin that covers ±2000 and stops. It is checked at 2400x1200 and 1200x2200, and
   again after a live RESIZE, which is when this class of bug appears at all. **And nothing drawn may
   cross anything else or leave the viewport**, checked at five mobile shapes across the menu, the
-  settings, the modes list, the rival question, the gallery, the board, the tutorial, the rules page
-  and the shop. **375x664 — the SHORT portrait phone — is the fifth, and it was added after a bug it
+  settings, the modes list, the rival question, the gallery, the board, the tutorial, the rules page,
+  the daily and the shop. The daily joined that list late and had a shipped overlap to show for it —
+  a screen nothing here opens is a screen nothing here checks. **375x664 — the SHORT portrait phone — is the fifth, and it was added after a bug it
   would not have caught**: every other portrait shape here is about 2.2:1, and at 1.77:1 the square
   board leaves a 152px band instead of 235. The board case therefore also asserts a real CLEARANCE
   (6px) between the two priced buttons and the bottom edge, because "inside the viewport" was not
@@ -1966,9 +1967,14 @@ reference reads, and neither pretends to be the other.
 
 Six, one shot each except the last. **A lesson that lets you keep firing until something works
 teaches persistence, not aim**; every one but `clear` resolves on ONE shot, so it is a question with
-an answer rather than a sandbox. A failure is not a dead end — the board puts itself back after
-1.1 seconds and the hint states **the rule the failure just demonstrated**, which is where lesson
-three does its actual teaching.
+an answer rather than a sandbox. A failure is not a dead end — the hint states **the rule the failure just
+demonstrated**, which is where lesson three does its actual teaching, and it stays up until the
+player taps. **It used to go on a timer** (1100ms), which is long enough to watch a disc finish
+falling and nowhere near long enough to READ two sentences, so the one line that explains the
+mistake was gone before it had been taken in. No timer can be tuned out of that: the right pause is
+however long this particular player needs. The prompt is part of the line (`tutRetry`), and the
+board goes back on the pointer's RELEASE — `beginAim` refuses while the hint is up, so the tap that
+dismisses it cannot also become a shot.
 
 | # | id | teaches |
 |---|---|---|
@@ -2172,10 +2178,15 @@ the shop is not on.
   second overlay from it would stack two dialogs over one frozen scene. The second is local — that
   panel is a fixed stack of rows at `PANEL_HEIGHT` 404, already scaled on both axes to survive a
   landscape phone, and a fourth row is paid for on the screen least able to afford it. The button
-  forgets the chapters and LEAVES (`navBack`), and whichever host it lands on opens the tour in its
-  own `create()`. That is what makes it unconditional: `navBack` restores `Game` with its
-  `{ resume: true }` return data, so asking mid-match brings the tour to the board rather than to a
-  fresh match.
+  forgets the chapters and LEAVES, and the host it lands on opens the tour in its own `create()`.
+
+  **It lands on a screen that HAS a chapter, which a plain `navBack` did not.** Only `MainMenu` and
+  `Game` ask `shouldRunTour`, and the gear that reaches the rules page is on EVERY screen — so a
+  player who opened it from the modes list, the shop or the daily had the chapters cleared, the back
+  button's ordinary destination, and no tour at all. Reported as "show me around does not take me to
+  the menu". Mid-match it is still `navBack`, which restores `Game` with its `{ resume: true }`
+  return data and brings the tour to the board; everywhere else it is `navMarkRoot` and a jump home.
+  That is what makes it unconditional — neither branch can lose a saved match.
 - **The tour's opening card takes `gameTitle`**, not a title key of its own — so the card and the
   wordmark behind it cannot drift apart, or disagree in Spanish. It held a second copy of the name
   for an afternoon, and that copy said the wrong one: see "One name, and it is Flick Checkers".
@@ -3169,6 +3180,31 @@ the wrong camera is now `Game`'s HUD over a board rather than over a logical 960
 mechanism each one describes is unchanged.
 
 App bugs:
+
+- **Blitz had no visible clock in landscape, which is the whole of the mode.** The countdown is
+  appended to the status capsule, and the side panel HIDES that capsule — it is what the two lit
+  blocks replace (`layoutHud`'s `statusText.setVisible(!panelled)`). So the one number the mode is
+  played on was on screen in portrait and nowhere on the web build, where every desktop gets the
+  panel. It is in the ACTIVE block's own line now (`Game.shotClockSeconds`), gold under two seconds,
+  and it asks the same questions `tickShotClock` does rather than restating them — a number frozen
+  at 5 under an idle block would be worse than none. → `tests/platform/panel.test.ts`
+- **The daily's hint button was drawn across the second line of its own status.** The button's y is
+  `top + statusText.height + gap`, and `bindLayout` runs its first pass from `create()` — where that
+  text is still EMPTY, because `reset()` is the line after it. So the button was placed against the
+  height of an empty `Text`, one line too high, on every phone that never resizes after boot.
+  Reported with a screenshot of it sitting over "Clear the board in one shot". `refreshStatus` now
+  re-lays the scene out, the same fix as `Game`'s capsule drawn around the PREVIOUS status. The
+  daily was ALSO the one screen `layout.test.ts` had never opened, which is why nothing caught it;
+  it has a case now, with the hint forced visible, and it reproduces the overlap on demand.
+- **The tutorial's lesson block climbed onto the board on short phones.** It was centred in the
+  trailing band and clamped only against the top bar and the bottom edge — so on a 1.77:1 phone,
+  where a square board leaves a 152px band against a block that wants ~170, the clamp pushed it up
+  until the lesson title was drawn across the board's last two ranks. Reported with a screenshot:
+  "должно быть внизу". The block is now FITTED to the band (`measureBlock`, up to three passes
+  because a `Text`'s height quantises to whole lines) and its ceiling is the board's own bottom edge
+  — the same shape as `Game.layoutHud`'s `measureTrailingStack`, and the same `MIN_HUD_SHRINK`-style
+  floor. Negative-controlled: reverting the ceiling fails exactly 360x640 and 375x664 and leaves the
+  other four shapes passing. → `tests/platform/layout.test.ts`
 
 - **The guided tour's spotlight pointed at empty background.** The step rectangles are SCREEN
   coordinates read from the host, and `Coach` read them once in `create()`; `layout()` re-placed the
