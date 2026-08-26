@@ -149,6 +149,13 @@ if (existsSync(metadataPath)) {
   if (!metadata.title || metadata.title.length > 50) fail(`store/metadata.json: title is ${metadata.title?.length ?? 0} chars, the portal allows 50.`)
   if (!metadata.description || metadata.description.length > 150) fail(`store/metadata.json: description is ${metadata.description?.length ?? 0} chars, the portal allows 150.`)
   if (!GENRES.includes(metadata.genre)) fail(`store/metadata.json: "${metadata.genre}" is not one of the portal's genres.`)
+  // The portal's second dropdown, which is optional there and therefore optional here. Checked the
+  // same way, and checked for being a DIFFERENT genre: the form offers the same ten in both, and a
+  // game filed twice under one genre has said nothing with its second choice.
+  if (metadata.secondaryGenre !== undefined) {
+    if (!GENRES.includes(metadata.secondaryGenre)) fail(`store/metadata.json: "${metadata.secondaryGenre}" is not one of the portal's genres.`)
+    else if (metadata.secondaryGenre === metadata.genre) fail('store/metadata.json: the secondary genre repeats the primary one.')
+  }
   for (const [aspect, file] of Object.entries(metadata.thumbnails ?? {})) {
     if (!existsSync(path.join(ROOT, 'store', file))) fail(`store/metadata.json: the ${aspect} thumbnail "${file}" does not exist.`)
   }

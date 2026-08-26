@@ -2,6 +2,7 @@
   "title": "Flick Checkers",
   "description": "Flick your discs across the board and knock the other side off. Five branches of arms, a daily one-shot puzzle.",
   "genre": "Board and Card",
+  "secondaryGenre": "Arcade",
   "orientation": "any",
   "languages": ["en", "es"],
   "thumbnails": {
