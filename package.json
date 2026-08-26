@@ -1,7 +1,7 @@
 {
   "name": "flick-checkers",
-  "version": "0.1.0",
-  "description": "Chapaev — flick your checkers off the board, for YouTube Playables",
+  "version": "1.0.0",
+  "description": "Flick Checkers — flick your discs off the board, for YouTube Playables",
   "type": "module",
   "scripts": {
     "dev": "vite",
