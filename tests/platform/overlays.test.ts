@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { buttonAt, DEFAULT_SAVE, launch, open, startMatch, waitForOverlay, waitForScene, type GamePage, type Harness } from './harness'
+import { buttonAt, DEFAULT_SAVE, launch, open, startMatch, waitForOverlay, waitForScene, waitForSettled, type GamePage, type Harness } from './harness'
 
 /**
  * Four defects a player found in one sitting, each reproduced here so it cannot come back.
@@ -184,6 +184,54 @@ describe('overlays and the board camera', () => {
     })
     assert.equal(await offered(), true, 'the hint was still hidden after three misses')
     assert.ok(found, "today's puzzle has no solution the generator's own search can find")
+    await game.page.close()
+  })
+
+  /**
+   * A pip that comes back is drawn lit, even if its fade was frozen by a pause.
+   *
+   * Reported from a real match: "one disc disappeared from the count the moment the violets lost the
+   * round, though there were seven on the board — and after my next shot it came back". The fade that
+   * dims a lost pip is a scene tween; `MatchResult` pauses the board scene and Phaser freezes its
+   * tweens with it, so the next round set the counter back to a full board while those pips were
+   * still officially mid-fade — and `redraw` skipped them, on the rule that a tween owns what it is
+   * animating. They resumed on the scene's resume and finished fading, on a row that was full.
+   *
+   * Driven through the counter and the scene's own pause rather than by playing a round out: what is
+   * under test is the interaction between a frozen tween and a count going back UP, and reaching it
+   * through five rounds of real play would make the test about the physics instead.
+   */
+  it('lights the pips again when a round starts under a frozen fade', async () => {
+    const game = await open(harness, { width: 390, height: 844, save: DEFAULT_SAVE })
+    await startMatch(game)
+    await waitForSettled(game.page)
+    await game.page.waitForTimeout(400)
+
+    const alphas = () =>
+      game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Game') as unknown as { discCounter: { objects: Phaser.GameObjects.GameObject[] } }
+        return (scene.discCounter.objects as unknown as { alpha: number }[]).map((pip) => pip.alpha)
+      })
+
+    // Three discs lost, then the result panel goes up — which is a `scene.pause()` on this scene.
+    await game.page.evaluate(() => {
+      const scene = window.__game!.scene.getScene('Game') as unknown as { discCounter: { setCounts(p: number, o: number): void } }
+      scene.discCounter.setCounts(8, 5)
+    })
+    await game.page.waitForTimeout(60)
+    await game.page.evaluate(() => window.__game!.scene.getScene('Game').scene.pause())
+    await game.page.waitForTimeout(400)
+
+    // The next round: a full board again, set while the fade is still frozen half-way.
+    await game.page.evaluate(() => {
+      const scene = window.__game!.scene.getScene('Game') as unknown as { discCounter: { setCounts(p: number, o: number): void } }
+      scene.discCounter.setCounts(8, 8)
+      window.__game!.scene.getScene('Game').scene.resume()
+    })
+    await game.page.waitForTimeout(700)
+
+    const dim = (await alphas()).filter((alpha) => alpha < 0.99)
+    assert.deepEqual(dim, [], `the counter is showing ${dim.length} disc(s) the board still has`)
     await game.page.close()
   })
 

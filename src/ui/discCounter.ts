@@ -80,8 +80,30 @@ export function createDiscCounter(scene: Phaser.Scene, capacity: number, pieces:
       row.pips.forEach((pip, i) => {
         pip.setRadius(r)
         pip.setPosition(centre.x - rowWidth / 2 + r + i * step, y)
-        // Only set alpha for pips that are not mid-animation: the tween owns those.
-        if (!scene.tweens.isTweening(pip)) pip.setAlpha(i < row.count ? 1 : SOCKET_ALPHA)
+        /**
+         * A pip that should be LIT is drawn lit, whatever a tween thinks — and a tween owns only the
+         * ones on their way out.
+         *
+         * **The asymmetry is a fix for a reported bug**: "one disc disappeared from the count the
+         * moment the round ended, though there were seven on the board — and it came back after my
+         * next shot". The fade that dims a lost pip is a scene tween, and `MatchResult` PAUSES the
+         * board scene, which freezes it mid-way. The next round then set the counter back to a full
+         * board while those pips were still officially tweening, so this line skipped them; they
+         * resumed on the scene's resume and finished fading to a socket, on a row that was supposed
+         * to be full. The next `setCounts` — the player's following shot — found the tweens finished
+         * and healed it, which is exactly the shape of what was reported.
+         */
+        const lit = i < row.count
+        if (lit) {
+          if (scene.tweens.isTweening(pip)) {
+            scene.tweens.killTweensOf(pip)
+            // The fade tweens scale as well, and a killed tween leaves it wherever it stopped.
+            pip.setScale(1)
+          }
+          pip.setAlpha(1)
+        } else if (!scene.tweens.isTweening(pip)) {
+          pip.setAlpha(SOCKET_ALPHA)
+        }
       })
     })
   }

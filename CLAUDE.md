@@ -3210,6 +3210,16 @@ mechanism each one describes is unchanged.
 
 App bugs:
 
+- **A pip went out on the counter while its disc was still on the board.** Reported from a real
+  match: "one disc disappeared from the count the moment the violets lost the round, though there
+  were seven on the board — and after my next shot it came back". The fade that dims a lost pip is a
+  SCENE tween, and `MatchResult` pauses the board scene, which freezes it half-way. The next round
+  then set the counter back to a full board while those pips were still officially mid-fade, and
+  `redraw` skipped them on the rule that "a tween owns what it is animating" — so they resumed with
+  the scene and finished fading, on a row that was supposed to be full. The next `setCounts`, which
+  is the player's following shot, found the tweens finished and healed it, which is exactly the shape
+  of what was reported. The rule is now asymmetric: a pip that should be LIT is drawn lit and its
+  tween killed; only a pip on its way OUT is left to the animation. → `tests/platform/overlays.test.ts`
 - **The whole HUD was drawn across the board on any squarish viewport.** Reported from the
   Playables preview frame with a screenshot: the coin badge, the round pill, the back button, the
   gear, the status capsule, the portrait, the pips and BOTH priced buttons over the playing field,
