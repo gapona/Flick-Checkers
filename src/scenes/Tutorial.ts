@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser'
 import { backgroundKey, SFX } from '../assets'
 import { playSfx } from '../audio/audio'
-import { bandCenter, computeAimZoom, computeBoardFit, computeHudBands, type BoardFit, type HudBands } from '../board/layout'
+import { bandCenter, BOARD_SCREEN_MARGIN_PX, computeAimZoom, computeBoardFit, computeHudBands, hudReserve, type BoardFit, type HudBands } from '../board/layout'
 import { createBoardView, type BoardView } from '../board/boardView'
 import { createDiscView, type DiscView } from '../board/discView'
 import { createAimView, type AimView } from '../board/aimView'
@@ -550,7 +550,8 @@ export class Tutorial extends Phaser.Scene {
   layout(width: number, height: number): void {
     this.viewportW = width
     this.viewportH = height
-    this.fit = computeBoardFit(this.board.metrics, width, height)
+    // Same reserve as `Game`: the coach block lives in the band this leaves. See `hudReserve`.
+    this.fit = computeBoardFit(this.board.metrics, width, height, BOARD_SCREEN_MARGIN_PX, hudReserve(width, height, uiScale(width), 'bands'))
     this.bands = computeHudBands(width, height, this.fit.boardPx)
     this.applyCamera()
     this.uiCamera.setViewport(0, 0, width, height)
@@ -615,10 +616,18 @@ export class Tutorial extends Phaser.Scene {
 
     this.titleText.setPosition(centre.x, top)
     this.lineText.setPosition(centre.x, top + this.titleText.height + gap)
-    const rowY = top + block.height - block.rowH / 2
-    const rowLeft = centre.x - block.rowW / 2
-    this.backButton.layout(rowLeft + block.backW / 2, rowY, block.rowScale)
-    this.actionButton.layout(rowLeft + block.backW + ROW_GAP * block.rowScale + block.actionW / 2, rowY, block.rowScale)
+    if (block.stacked) {
+      // The action first and Back under it — `scenes/Coach.ts`'s own order, for the same reason: the
+      // button somebody presses to move ON is the one that should be where the eye already is.
+      const actionY = top + block.height - block.rowsH + block.rowH / 2
+      this.actionButton.layout(centre.x, actionY, block.rowScale)
+      this.backButton.layout(centre.x, actionY + block.rowH + ROW_GAP * block.rowScale, block.rowScale)
+    } else {
+      const rowY = top + block.height - block.rowH / 2
+      const rowLeft = centre.x - block.rowW / 2
+      this.backButton.layout(rowLeft + block.backW / 2, rowY, block.rowScale)
+      this.actionButton.layout(rowLeft + block.backW + ROW_GAP * block.rowScale + block.actionW / 2, rowY, block.rowScale)
+    }
   }
 
   /**
@@ -637,7 +646,7 @@ export class Tutorial extends Phaser.Scene {
     band: { x: number; y: number; width: number; height: number },
     blockScale: number,
     scale: number,
-  ): { height: number; rowH: number; rowW: number; rowScale: number; backW: number; actionW: number } {
+  ): { height: number; rowH: number; rowsH: number; rowW: number; rowScale: number; backW: number; actionW: number; stacked: boolean } {
     // The band is the full viewport width in portrait and a narrow side strip in landscape, so the
     // wrap has to be the SMALLER of the two rules — the content column keeps a desktop from
     // stretching one sentence across a metre, the band keeps a landscape phone inside its strip.
@@ -667,18 +676,32 @@ export class Tutorial extends Phaser.Scene {
     const rowScale = Math.max(blockScale * MIN_BUTTON_SCALE, Math.min(blockScale, (blockScale * (band.width - 16 * scale)) / wanted))
     const actionW = buttonWidth('compact', rowScale)
     const backW = buttonWidth('icon', rowScale)
+    /**
+     * …and STACKED when even the floor is wider than the band.
+     *
+     * The pair shrinks to the band first, which is enough on every phone; it is not enough on a
+     * squarish landscape, where the band is a ~160px strip against a 242-unit row that will not go
+     * below `MIN_BUTTON_SCALE`. Stacking was tried and rejected once — see the note above — but that
+     * was about a 360-TALL landscape, where two rows plus a wrapped hint ran off the bottom. In this
+     * shape the band is the full height of a 455px viewport, so height is exactly what there is
+     * plenty of. The condition is the honest one: stack only when the row genuinely does not fit.
+     */
+    const stacked = backW + ROW_GAP * rowScale + actionW > band.width - 16 * scale
     // The TALLER of the two tokens: `icon` is 64 design units against `compact`'s 56, so measuring the
     // block by the action alone left the back button hanging 8 units past the bottom of it — one pixel
     // from the edge of a 360x640 phone, and a cut through the guided tour's ring around it.
     const rowH = Math.max(buttonHeight('compact', rowScale), buttonHeight('icon', rowScale))
 
+    const rowsH = stacked ? rowH * 2 + ROW_GAP * rowScale : rowH
     return {
-      height: this.titleText.height + gap + this.lineText.height + gap + rowH,
+      height: this.titleText.height + gap + this.lineText.height + gap + rowsH,
       rowH,
-      rowW: backW + ROW_GAP * rowScale + actionW,
+      rowsH,
+      rowW: stacked ? Math.max(backW, actionW) : backW + ROW_GAP * rowScale + actionW,
       rowScale,
       backW,
       actionW,
+      stacked,
     }
   }
 }

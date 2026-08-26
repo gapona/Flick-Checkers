@@ -378,7 +378,7 @@ describe('the layout holds at every shape', () => {
     await game.page.close()
   })
 
-  for (const size of [{ width: 320, height: 700 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 320, height: 700 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }, { width: 604, height: 455 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws every menu without overlaps at ${at}`, async () => {
@@ -477,7 +477,7 @@ describe('the layout holds at every shape', () => {
     })
   }
 
-  for (const size of [{ width: 320, height: 700 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 320, height: 700 }, { width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 740, height: 360 }, { width: 844, height: 390 }, { width: 604, height: 455 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws the tutorial and the rules page without overlaps at ${at}`, async () => {
@@ -655,7 +655,7 @@ describe('the layout holds at every shape', () => {
    * the guided tour's ring around one of them was cut in half. Reported from a phone with a
    * screenshot, which is the third time an aspect ratio nobody enumerated has been the bug.
    */
-  for (const size of [{ width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  for (const size of [{ width: 360, height: 640 }, { width: 375, height: 664 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 604, height: 455 }, { width: 1024, height: 768 }]) {
     const at = `${size.width}x${size.height}`
 
     it(`draws the board's HUD without overlaps at ${at}`, async () => {

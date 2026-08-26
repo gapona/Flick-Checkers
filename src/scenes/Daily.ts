@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser'
 import { backgroundKey, SFX } from '../assets'
 import { playSfx } from '../audio/audio'
-import { bandCenter, computeAimZoom, computeBoardFit, computeHudBands, type BoardFit, type HudBands } from '../board/layout'
+import { bandCenter, BOARD_SCREEN_MARGIN_PX, computeAimZoom, computeBoardFit, computeHudBands, hudReserve, type BoardFit, type HudBands } from '../board/layout'
 import { createBoardView, type BoardView } from '../board/boardView'
 import { boardSet } from '../game/skins'
 import { createDiscView, type DiscView } from '../board/discView'
@@ -20,8 +20,8 @@ import { BOT_LEVELS } from '../bot/levels'
 import { logError } from '../platform/yt'
 import { t } from '../i18n/strings'
 import { bindAction, bindDrag } from '../platform/input'
-import { createTopBar, navBack, navMarkRoot, screenInsets, type TopBar } from '../ui/chrome'
-import { buttonHeight, gameButton, type GameButton } from '../ui/button'
+import { contentColumn, createTopBar, navBack, navMarkRoot, screenInsets, type TopBar } from '../ui/chrome'
+import { buttonHeight, buttonWidth, gameButton, type GameButton } from '../ui/button'
 import { bindLayout } from '../ui/layout'
 import { uiScale } from '../ui/uiScale'
 
@@ -53,6 +53,9 @@ const BACKGROUND_OVERSCAN = 1.04
 /** Matches `Game`'s. The daily is the same gesture on the same board, so it gets the same camera —
  * a pull that has room to be pulled in one mode and not in the other is two different games. */
 const AIM_CAMERA_MS = 130
+/** How far the status-and-hint block may be shrunk to fit its band before it stops being readable —
+ * `Tutorial`'s own floor, for the same trade on the same viewports. */
+const MIN_BLOCK_SHRINK = 0.7
 const BOARD_SIZE = 8
 
 /**
@@ -598,7 +601,9 @@ export class Daily extends Phaser.Scene {
   layout(width: number, height: number): void {
     this.viewportW = width
     this.viewportH = height
-    this.fit = computeBoardFit(this.board.metrics, width, height)
+    // Same reserve as `Game`: the board must not eat the band this screen's own status and hint
+    // button live in. See `board/layout.ts`'s `hudReserve`.
+    this.fit = computeBoardFit(this.board.metrics, width, height, BOARD_SCREEN_MARGIN_PX, hudReserve(width, height, uiScale(width), 'bands'))
     this.bands = computeHudBands(width, height, this.fit.boardPx)
     this.applyCamera()
     this.uiCamera.setViewport(0, 0, width, height)
@@ -606,7 +611,6 @@ export class Daily extends Phaser.Scene {
     const scale = uiScale(width)
 
     this.topBar.layout(width, height)
-    this.statusText.setFontSize(STATUS_FONT_SIZE * scale)
 
     /**
      * The status and, under it, the hint button — as ONE block centred in the band, so the status does
@@ -614,11 +618,24 @@ export class Daily extends Phaser.Scene {
      *
      * Reserved rather than measured, the same rule the board's own speech row keeps: the button's row
      * is always part of the block's height, whether or not the button is currently in it.
+     *
+     * **Fitted to the band's WIDTH, which in landscape is a side strip rather than the screen.** The
+     * status was never wrapped and the button is a fixed 168-unit token, so on a squarish landscape —
+     * where the strip is about 160px — the two lines ran off the right of the viewport and the button
+     * with them. Measured at 604x455 before this: the status ended at x=604 exactly, on a 604-wide
+     * screen. `Game`'s own capsule learned the same lesson one screen along, and for the same reason:
+     * a band is not the viewport.
      */
-    const buttonH = buttonHeight('compact', scale)
-    const gap = 10 * scale
+    const band = this.bands.trailing
+    const room = Math.max(120, Math.min(contentColumn(width), band.width - 16 * scale))
+    const blockScale = Math.max(scale * MIN_BLOCK_SHRINK, Math.min(scale, (scale * room) / buttonWidth('compact', scale)))
+    this.statusText.setFontSize(STATUS_FONT_SIZE * blockScale)
+    this.statusText.setWordWrapWidth(room)
+
+    const buttonH = buttonHeight('compact', blockScale)
+    const gap = 10 * blockScale
     const blockH = this.statusText.height + gap + buttonH
-    const status = bandCenter(this.bands.trailing)
+    const status = bandCenter(band)
     // Centred in the band where it fits, and pushed off the bottom EDGE where it does not — the same
     // rule and the same reason as the board's own HUD: what is at the bottom of this block is a tap
     // target, and the bottom inset is the home indicator's. Measured at 360x640 the block wanted the
@@ -627,7 +644,7 @@ export class Daily extends Phaser.Scene {
     const top = Math.max(this.topBar.height(this) + 8 * scale, Math.min(status.y - blockH / 2, floor - blockH))
 
     this.statusText.setPosition(status.x, top)
-    this.hintButton.layout(status.x, top + this.statusText.height + gap + buttonH / 2, scale)
+    this.hintButton.layout(status.x, top + this.statusText.height + gap + buttonH / 2, blockScale)
     this.refreshHintButton()
   }
 }

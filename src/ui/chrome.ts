@@ -224,6 +224,17 @@ export interface TopBar {
    */
   setBadgesVisible(visible: boolean): void
   /**
+   * Hides the back button, for a layout that carries the way out itself.
+   *
+   * **One caller, and it is a fix.** `Game`'s side panel puts the board's group in the middle of the
+   * viewport while this button stays pinned to the left edge — so on every landscape narrower than a
+   * desktop the two met: measured, the button crossed the board by 64px at 667x375, 46px at 740x360
+   * and 9px at 844x390, sitting on the corner of the playing field and swallowing every tap there.
+   * The panel's own Leave button raises the same dialog one row further in, so the button is not
+   * merely moved out of the way, it is redundant where it was in the way.
+   */
+  setBackVisible(visible: boolean): void
+  /**
    * Where the bar's own controls currently are, in SCREEN px — for the guided tour's spotlight
    * (`scenes/Coach.ts`), which needs a rectangle to cut a hole around.
    *
@@ -368,6 +379,12 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
       coins.setVisible(visible)
       round?.setVisible(visible)
     },
+    setBackVisible(visible: boolean) {
+      back?.container.setVisible(visible)
+      // The hit area is a separate object and stays interactive on its own: an invisible button that
+      // still takes taps is the shop's hidden-row bug (`scenes/Shop.ts`), one screen along.
+      back?.setEnabled(visible)
+    },
     parts() {
       const boxOf = (button: GameButton): Phaser.Geom.Rectangle => {
         // The CONTAINER's bounds, not the hit area's: `gameButton` pads every tap target out to 44
@@ -378,7 +395,7 @@ export function createTopBar(scene: Phaser.Scene, options: TopBarOptions): TopBa
       return {
         balance: badge.visible && badgeBox.width > 0 ? Phaser.Geom.Rectangle.Clone(badgeBox) : null,
         settings: boxOf(gear),
-        back: back ? boxOf(back) : null,
+        back: back && back.container.visible ? boxOf(back) : null,
       }
     },
     height(host: Phaser.Scene) {

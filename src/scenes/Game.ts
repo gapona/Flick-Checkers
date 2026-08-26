@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser'
 import { ATLAS_FRAMES, ATLAS_KEY, backgroundKey, SFX } from '../assets'
 import { playSfx } from '../audio/audio'
-import { bandCenter, computeAimZoom, computeBoardFit, computeHudBands, computeSidePanel, type SidePanelFit, createBoardMetrics, type BoardFit, type HudBands, type Rect } from '../board/layout'
+import { bandCenter, BOARD_SCREEN_MARGIN_PX, computeAimZoom, computeBoardFit, computeHudBands, computeSidePanel, createBoardMetrics, hudReserve, type BoardFit, type HudBands, type Rect, type SidePanelFit } from '../board/layout'
 import { createBoardView, type BoardView } from '../board/boardView'
 import { boardSet, effectSet, pieceSet, type EffectBurst, type EffectSet } from '../game/skins'
 import { createDiscView, type DiscView } from '../board/discView'
@@ -131,6 +131,10 @@ const HUD_BAND_MARGIN = 10
  * block and something has to LEAVE it rather than shrink further.
  */
 const MIN_HUD_SHRINK = 0.78
+/** How far the pip counter may be shrunk into the strip between the top bar and the board before it
+ * stops being a row of pips and becomes a row of specks. Below this it is hidden instead — see
+ * `layoutHud`. */
+const MIN_COUNTER_SHRINK = 0.6
 /** Discs left before a character starts talking about it. */
 const LOW_DISCS = 2
 
@@ -2058,7 +2062,8 @@ export class Game extends Phaser.Scene {
     this.viewportW = width
     this.viewportH = height
 
-    this.fit = computeBoardFit(this.board.metrics, width, height)
+    // The reserve is what keeps the HUD off the board on a squarish viewport — see `hudReserve`.
+    this.fit = computeBoardFit(this.board.metrics, width, height, BOARD_SCREEN_MARGIN_PX, hudReserve(width, height, uiScale(width)))
     this.bands = computeHudBands(width, height, this.fit.boardPx)
     // Before `applyCamera`: the board's screen position depends on whether a panel is taking
     // space beside it, and the camera is what puts it there.
@@ -2098,8 +2103,18 @@ export class Game extends Phaser.Scene {
    */
   private showPanel(panelled: boolean): void {
     // The balance and the round pill move INTO the panel, so the bar stops drawing them — otherwise
-    // each is on screen twice in one frame. Back and the gear stay: they are the way off the screen.
+    // each is on screen twice in one frame.
     this.topBar.setBadgesVisible(!panelled)
+    /**
+     * **And so does the way out.** The panel centres the board's GROUP in the viewport while the top
+     * bar's back button stays pinned to the left edge, so on every landscape narrower than a desktop
+     * the two met: measured, the button crossed the board by 64px at 667x375, 46px at 740x360 and 9px
+     * at 844x390 — an opaque control on the corner of the playing field, swallowing every tap there.
+     * The panel's own Leave raises the same dialog, so where this button was in the way it was also
+     * redundant. The gear stays: nothing else opens Settings, and it sits over the panel rather than
+     * over the board.
+     */
+    this.topBar.setBackVisible(!panelled)
     this.sidePanel.setVisible(panelled)
     this.opponentBlock.setVisible(panelled)
     this.playerBlock.setVisible(panelled)
@@ -2266,6 +2281,29 @@ export class Game extends Phaser.Scene {
     // below it rather than in the band's own centre.
     const counterY = portrait ? (this.topBar.height(this) + this.bands.leading.height) / 2 : leading.y - 40 * scale
     this.discCounter.layout(leading.x, counterY, scale)
+    /**
+     * …and then FITTED to that strip, because it is not always as tall as two rows of pips.
+     *
+     * The strip is whatever a square board leaves above itself MINUS the top bar, and the bar is
+     * 119px on a 360-wide phone (54 of safe-area budget before it starts). Measured: 25px of strip
+     * against a 36px counter at 360x640, 27 against 37 at 375x664, 28 against 40 on a 4:3 tablet —
+     * so the second row of pips was drawn over the board's top rank on every phone shorter than
+     * about 2.2:1. Same class as everything else in this pass: a block centred in a band it does not
+     * fit.
+     *
+     * **Shrunk, and hidden when even that will not do.** 320x568 leaves 16px of strip against a
+     * 32px counter, and a counter squeezed to half size is a row of specks — while the discs it
+     * counts are on the board in front of the player, which is the one HUD element whose absence
+     * costs nothing. Every other targeted shape lands between 0.7 and 1.
+     */
+    if (portrait) {
+      const strip = this.bands.leading.y + this.bands.leading.height - this.topBar.height(this) - 4
+      const wanted = this.discCounter.height
+      const factor = wanted > strip ? strip / wanted : 1
+      const fits = factor >= MIN_COUNTER_SHRINK
+      for (const object of this.discCounter.objects) (object as Phaser.GameObjects.Image).setVisible(fits)
+      if (fits && factor < 1) this.discCounter.layout(leading.x, this.topBar.height(this) + strip / 2, scale * factor)
+    }
 
     this.statusText.setFontSize(STATUS_FONT_SIZE * scale)
     this.retakeButton.layout(0, 0, scale)

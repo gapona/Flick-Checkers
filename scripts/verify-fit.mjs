@@ -28,6 +28,9 @@ import {
   screenToGrid,
   tileRect,
   computeSidePanel,
+  hudReserve,
+  panelWidthFor,
+  MIN_BOARD_FRACTION,
   PANEL_GAP,
   PANEL_MIN_WIDTH,
   PANEL_MAX_WIDTH,
@@ -409,6 +412,61 @@ check('boardOffsetX is what the camera has to undo, and it is zero without a pan
   // between where the board is and where a centred one would have been.
   assert.ok(fit.boardOffsetX < 0)
   assert.equal(fit.board.x - (1280 - 704) / 2, fit.boardOffsetX)
+})
+
+console.log('src/board/layout.ts -- the HUD reserve')
+
+/**
+ * The rule this section defends: the board is bound by the shorter side, EXCEPT where that would
+ * leave the other axis too narrow for the HUD to be drawn beside it.
+ *
+ * It exists because of a shape nobody enumerated. A 604x455 preview frame (and 640x480, 800x600, an
+ * iPad's 1024x768) gave the HUD 82px side bands against a 168px button, so the balance, the round
+ * pill, the status capsule and BOTH priced buttons were drawn across the board and the buttons ran
+ * off the screen. The reserve is what makes the board give way instead.
+ */
+check('the reserve changes nothing on the shapes this game was tuned against', () => {
+  const m = createBoardMetrics(8)
+  // Phones, portrait and landscape, plus a 16:9 desktop: every one has room to spare, so the board
+  // must come out at exactly the shorter side less its margins.
+  for (const [w, h, scale] of [[390, 844, 0.975], [360, 640, 0.9], [375, 664, 0.9375], [320, 568, 0.8], [844, 390, 1], [740, 360, 1], [1280, 720, 1], [1920, 1080, 1]]) {
+    const withReserve = computeBoardFit(m, w, h, BOARD_SCREEN_MARGIN_PX, hudReserve(w, h, scale))
+    assert.equal(withReserve.boardPx, computeBoardFit(m, w, h).boardPx, `${w}x${h}: the reserve moved a board it had no business moving`)
+  }
+})
+
+check('a squarish viewport leaves room for the panel beside the board', () => {
+  const m = createBoardMetrics(8)
+  for (const [w, h] of [[604, 455], [640, 480], [800, 600], [1024, 768], [960, 600], [1024, 640]]) {
+    const fit = computeBoardFit(m, w, h, BOARD_SCREEN_MARGIN_PX, hudReserve(w, h, 1))
+    const panel = computeSidePanel(w, h, fit.boardPx)
+    assert.equal(panel.mode, 'panel', `${w}x${h} fell back to two strips too narrow to hold the HUD`)
+    assert.ok(
+      fit.boardPx + PANEL_GAP + panelWidthFor(w) <= w + 1e-9,
+      `${w}x${h}: board ${fit.boardPx} plus the panel does not fit the viewport`,
+    )
+  }
+})
+
+check('a squarish PORTRAIT viewport leaves both bands their floor', () => {
+  const m = createBoardMetrics(8)
+  for (const [w, h] of [[768, 1024], [600, 800]]) {
+    const fit = computeBoardFit(m, w, h, BOARD_SCREEN_MARGIN_PX, hudReserve(w, h, 1))
+    const bands = computeHudBands(w, h, fit.boardPx)
+    // 150 is the block's own floor — see HUD_BAND_MIN_PX. Both bands are equal by construction, so
+    // checking the trailing one checks both.
+    assert.ok(bands.trailing.height >= 150 - 1e-9, `${w}x${h}: trailing band is ${bands.trailing.height}px`)
+  }
+})
+
+check('the board never gives up more than its floor, however tight the viewport', () => {
+  const m = createBoardMetrics(8)
+  for (const [w, h] of [[500, 400], [420, 400], [400, 380], [360, 350]]) {
+    const fit = computeBoardFit(m, w, h, BOARD_SCREEN_MARGIN_PX, hudReserve(w, h, 1))
+    const unreserved = computeBoardFit(m, w, h).boardPx
+    assert.ok(fit.boardPx >= unreserved * MIN_BOARD_FRACTION - 1e-9, `${w}x${h}: board ${fit.boardPx} is under the floor`)
+    assert.ok(fit.boardPx <= unreserved + 1e-9, `${w}x${h}: the reserve GREW the board`)
+  }
 })
 
 console.log(`${passed} checks passed`)

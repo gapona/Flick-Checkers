@@ -799,6 +799,15 @@ without a `Phaser.Scene` belongs here rather than in a scene.
   it as a claim in a comment, because two other things rest on it: with no pan gesture to
   disambiguate against, a one-finger drag can belong to aiming outright (§2's trap 4), and with the
   whole board visible, "how close is that disc to the edge" is answerable by looking.
+  - **…except where the OTHER axis has no room for the HUD, and then the board gives way.** The
+    shorter-side rule assumes the leftover on the long axis is enough to draw the HUD in, which is
+    true at 2:1 and false at 4:3 — measured, a 604x455 frame left 82px bands against a 168px button
+    and the entire HUD was drawn over the board. `computeBoardFit` therefore takes a `reserve`
+    (`hudReserve`: the side panel's width where a landscape draws one, two `HUD_BAND_MIN_PX` bands
+    otherwise), floored at `MIN_BOARD_FRACTION` so a viewport can never shrink the board to a
+    thumbnail. **It is worth nothing on the shapes the game was tuned against** — every phone and
+    every 16:9 measures identical with and without it, which is the property `verify:fit` pins down
+    first.
 - `computeHudBands()` returns the two leftover strips the HUD lives in, which swap with the
   orientation (bands above/below in portrait, left/right in landscape). Keeping the HUD strictly
   inside them matters more here than it did in draughts: the entire board is a drag surface, so a
@@ -3201,6 +3210,28 @@ mechanism each one describes is unchanged.
 
 App bugs:
 
+- **The whole HUD was drawn across the board on any squarish viewport.** Reported from the
+  Playables preview frame with a screenshot: the coin badge, the round pill, the back button, the
+  gear, the status capsule, the portrait, the pips and BOTH priced buttons over the playing field,
+  with the buttons running off the right edge of the screen. The cause is the rule the layout was
+  built on — the board takes the viewport's SHORTER side and the HUD gets whatever is left of the
+  other one, which is 235px on a 2:1 phone and **82px against a 168px button** at 604x455. Nothing
+  had ever enumerated a landscape between 1:1 and 1.7:1, which is also an iPad's 1024x768 and any
+  4:3 desktop window.
+  **The board now gives way**: `computeBoardFit` takes a `reserve` (`hudReserve`) — the panel's
+  width in a landscape that draws one, two band floors otherwise — so a landscape viewport always
+  HAS a panel instead of falling back to strips too narrow to hold anything, and a squarish portrait
+  keeps both bands. Floored at `MIN_BOARD_FRACTION`, and worth nothing on the shapes this game was
+  tuned against: every phone and every 16:9 measures byte-identical before and after.
+  Three smaller crossings went with it, each its own version of "a block centred in a band it does
+  not fit": the top bar's **back button** crossed the board by up to 64px in panel mode and is now
+  hidden there (the panel's own Leave raises the same dialog); the **pip counter**'s second row hung
+  over the board's top rank on every phone shorter than ~2.2:1 and is now fitted to the strip
+  between the bar and the board, or hidden below `MIN_COUNTER_SHRINK`; and the **daily**'s status,
+  which was never wrapped at all, ended at x=604 on a 604-wide screen. The tutorial's button pair
+  stacks when the band cannot take it side by side.
+  → `npm run verify:fit` (four new checks), `tests/platform/layout.test.ts` (604x455 and 1024x768
+  across the menus, the board, the daily, the tutorial and the shop)
 - **The music never came back after "YouTube muted, tab backgrounded, tab returned, unmuted".**
   `YTEvents.PAUSE` DESTROYS the music instance (a stopped-but-kept sound leaks one per cycle) and
   `RESUME` rebuilds it only if it would be audible — which, while the platform mute is on, it would

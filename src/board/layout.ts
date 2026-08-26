@@ -160,11 +160,78 @@ export interface BoardFit {
  * the aim gesture own the single-finger drag outright — with no pan to disambiguate it from, a drag
  * starting on one of your own discs can only mean aiming.
  */
-export function computeBoardFit(metrics: BoardMetrics, viewportW: number, viewportH: number, margin: number = BOARD_SCREEN_MARGIN_PX): BoardFit {
+export function computeBoardFit(
+  metrics: BoardMetrics,
+  viewportW: number,
+  viewportH: number,
+  margin: number = BOARD_SCREEN_MARGIN_PX,
+  reserve = 0,
+): BoardFit {
+  const short = Math.min(viewportW, viewportH) - margin * 2
+  // What is left of the LONG axis once the HUD's share of it is taken out. On the shapes this game
+  // was tuned against it is far bigger than `short` and changes nothing; on a squarish one it is
+  // what stops the board from eating the room the HUD has to live in.
+  const long = Math.max(viewportW, viewportH) - margin * 2 - reserve
   // A viewport smaller than the margins would otherwise produce a zero/negative zoom.
-  const boardPx = Math.max(1, Math.min(viewportW, viewportH) - margin * 2)
+  const boardPx = Math.max(1, short * MIN_BOARD_FRACTION, Math.min(short, long))
   return { boardPx, zoom: boardPx / metrics.boardW, tileOnScreen: boardPx / metrics.size }
 }
+
+/**
+ * How far the board may be shrunk to make room for the HUD, as a share of the side that binds it.
+ *
+ * Below this the tile stops being something a thumb can aim at — 0.62 of a 455px-tall window is a
+ * 272px board, i.e. a 34px tile and a 27px disc, which is already under the 44px touch minimum and
+ * only survives because `GRAB_SLOP` pads the grab. A shape that needs more than this back is a shape
+ * where the HUD has to overlap something, and the board wins.
+ */
+export const MIN_BOARD_FRACTION = 0.62
+
+/**
+ * What the HUD needs on the axis the board does NOT bind on, in CSS px — the `reserve` argument to
+ * {@link computeBoardFit}.
+ *
+ * **This exists because of a shape nobody enumerated.** The board is bound by the viewport's shorter
+ * side and the HUD is given whatever that leaves on the other one — which is generous on a 2:1 phone
+ * and on a 16:9 desktop, and nearly nothing on anything squarish. Measured on the Playables preview
+ * frame (604x455, and the same story at 640x480, 800x600 and an iPad's 1024x768): side bands of 82px
+ * against a 168px button, so the balance, the round pill, the status capsule, the portrait and BOTH
+ * priced buttons were drawn across the board — and the buttons ran off the right edge of the screen
+ * entirely. Reported with a screenshot of exactly that.
+ *
+ * Landscape reserves the panel and its gap, so a landscape viewport always HAS a panel rather than
+ * falling back to two strips too narrow to hold anything. Portrait reserves the two bands, per side,
+ * at the smallest scale the block may be drawn at — `scale` is the caller's `uiScale`, which is why
+ * this takes it rather than computing it: `ui/uiScale.ts` imports Phaser and this file must not.
+ *
+ * Both numbers are deliberately the MINIMUM the HUD can be squeezed into rather than what it would
+ * like, so the board gives up nothing on the shapes where the HUD can already fit.
+ */
+export function hudReserve(viewportW: number, viewportH: number, scale: number, layout: HudLayout = 'panel'): number {
+  const landscapePanel = viewportW > viewportH && layout === 'panel'
+  return landscapePanel ? PANEL_GAP + panelWidthFor(viewportW) : 2 * HUD_BAND_MIN_PX * scale
+}
+
+/**
+ * Which HUD the caller draws in landscape, and therefore what it needs reserved.
+ *
+ * `Game` builds a side PANEL there and reserves its width; `Daily` and `Tutorial` have no panel and
+ * put their block in `computeHudBands`' strips, so they reserve two bands like portrait does.
+ * Reserving the wrong one is not harmless in either direction — a panel's width is nearly twice a
+ * band's, so a bands screen would give up board for room it never uses, and a panel screen given a
+ * band's reserve would go back to having no panel at all.
+ */
+export type HudLayout = 'panel' | 'bands'
+
+/**
+ * The trailing band's floor, in design units: the status capsule, the reserved speech row and the
+ * priced buttons, at `Game`'s own `MIN_HUD_SHRINK`, plus the bottom inset and the band margins.
+ *
+ * A number rather than a call into the scene because the scene is the wrong place to ask from: the
+ * board's size has to be decided before a single HUD object has been laid out, and this is the size
+ * that block refuses to go below.
+ */
+export const HUD_BAND_MIN_PX = 150
 
 /**
  * Cells of empty board-space the slingshot needs OUTSIDE the rim, per side.
@@ -304,6 +371,12 @@ export interface SidePanelFit {
   boardOffsetX: number
 }
 
+/** The panel's own width at this viewport — one formula, so {@link hudReserve} cannot reserve a
+ * different number from the one {@link computeSidePanel} then asks for. */
+export function panelWidthFor(viewportW: number): number {
+  return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, viewportW * PANEL_WIDTH_FRACTION))
+}
+
 export function computeSidePanel(viewportW: number, viewportH: number, boardPx: number): SidePanelFit {
   const centred: Rect = {
     x: (viewportW - boardPx) / 2,
@@ -313,8 +386,8 @@ export function computeSidePanel(viewportW: number, viewportH: number, boardPx: 
   }
 
   const landscape = viewportW > viewportH
-  const panelW = Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, viewportW * PANEL_WIDTH_FRACTION))
-  if (!landscape || boardPx + PANEL_GAP + PANEL_MIN_WIDTH > viewportW) {
+  const panelW = panelWidthFor(viewportW)
+  if (!landscape || boardPx + PANEL_GAP + panelW > viewportW) {
     return { mode: 'bands', board: centred, panel: null, boardOffsetX: 0 }
   }
 
