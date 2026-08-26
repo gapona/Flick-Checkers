@@ -148,6 +148,13 @@ if (existsSync(metadataPath)) {
   const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'))
   if (!metadata.title || metadata.title.length > 50) fail(`store/metadata.json: title is ${metadata.title?.length ?? 0} chars, the portal allows 50.`)
   if (!metadata.description || metadata.description.length > 150) fail(`store/metadata.json: description is ${metadata.description?.length ?? 0} chars, the portal allows 150.`)
+  // The portal takes a listing per language, and 150 chars is the budget for EACH of them — a
+  // translation is reliably longer than its English, which is exactly how a field nobody measured
+  // goes over. Every `description<Locale>` here is held to the same limit as the English one.
+  for (const [field, value] of Object.entries(metadata)) {
+    if (!/^description[A-Z]/.test(field)) continue
+    if (typeof value !== 'string' || value.length > 150) fail(`store/metadata.json: ${field} is ${typeof value === 'string' ? value.length : 0} chars, the portal allows 150.`)
+  }
   if (!GENRES.includes(metadata.genre)) fail(`store/metadata.json: "${metadata.genre}" is not one of the portal's genres.`)
   // The portal's second dropdown, which is optional there and therefore optional here. Checked the
   // same way, and checked for being a DIFFERENT genre: the form offers the same ten in both, and a
