@@ -203,6 +203,19 @@ kinds of thing and are documented separately for that reason.
 - `npm test` — the four cheap `verify:*` checks (`sim`, `fit`, `contrast`, `scroll`) plus the
   gameplay suite. The three slow ones — `verify:bot`, `verify:daily`, `verify:balance` — are
   deliberately outside it.
+- `npm run thumbs` — the portal's three store thumbnails (`tests/platform/thumbnails.ts` →
+  `store/thumbnails/`), rendered from the BUILT `dist/` through the same harness the browser tests
+  use, so what is photographed is the artefact rather than a dev server. The portal requires 1:1
+  (min 512), 5:7 (540x756 recommended) and 16:9 (min 1280x720), and each frame is composed for its
+  own shape: **the square is CLIPPED out of a portrait window**, because `computeBoardFit` binds the
+  board to the shorter side and a 1:1 viewport therefore leaves `computeHudBands` an 8px strip to
+  put the whole HUD in; the 5:7 is the menu, the one screen carrying the game's name; the 16:9 is the
+  landscape match with its side panel. Two details are not decoration — the board shots wait for the
+  opponent's line to STOP GROWING before firing (it types one character at a time, and the first run
+  produced "Sergeant said to jus"), and they take the frame immediately after, because
+  `SPEECH_HOLD_MS` hides it 2.6s later and a sleep long enough to be safe also misses it. Register
+  what it writes in `store/metadata.json`'s `thumbnails`, which `check-bundle` then holds to
+  existing.
 - `npm run sheet:branches` — every branch emblem on every piece set at the size a disc is actually
   drawn (`scripts/render-branch-sheet.mjs` → `build/branch-sheet.png`). **Judge the 1x block only**;
   the 3x block exists to diagnose a failure, never to find one. It renders the same shape list the

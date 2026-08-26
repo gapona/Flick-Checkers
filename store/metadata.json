@@ -3,5 +3,10 @@
   "description": "Flick your discs across the board and knock the other side off. Five branches of arms, a daily one-shot puzzle.",
   "genre": "Board and Card",
   "orientation": "any",
-  "languages": ["en", "es"]
+  "languages": ["en", "es"],
+  "thumbnails": {
+    "1:1": "thumbnails/thumb-1x1.png",
+    "5:7": "thumbnails/thumb-5x7.png",
+    "16:9": "thumbnails/thumb-16x9.png"
+  }
 }

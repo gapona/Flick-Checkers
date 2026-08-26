@@ -21,6 +21,7 @@
     "test:gameplay": "node --import ./scripts/register-ts-loader.mjs --test \"tests/gameplay/*.test.ts\"",
     "test:platform": "node --import ./scripts/register-ts-loader.mjs --test --test-concurrency=1 \"tests/platform/*.test.ts\"",
     "shots": "node --import ./scripts/register-ts-loader.mjs tests/platform/shots.ts",
+    "thumbs": "node --import ./scripts/register-ts-loader.mjs tests/platform/thumbnails.ts",
     "assets": "node scripts/make-atlas.mjs",
     "daily": "node --import ./scripts/register-ts-loader.mjs scripts/make-daily.mjs",
     "audio": "node scripts/make-audio.mjs",
