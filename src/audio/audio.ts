@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser'
-import { YTEvents, isAudioEnabled } from '../platform/yt'
+import { YTEvents, isAudioEnabled, isPlatformPaused } from '../platform/yt'
 import { getState, mutate } from '../save/store'
 
 /**
@@ -63,9 +63,32 @@ function effectiveMusic(): number {
   return platformAudioEnabled ? musicVolume() : 0
 }
 
+/**
+ * Makes the bed match the two levels — and STARTS it if becoming audible is what just happened.
+ *
+ * **The second half is a fix for a defect of the exact kind Playables rejects games for.** The
+ * PAUSE handler destroys the instance and RESUME restarts it *only if it would be audible*, so
+ * "YouTube muted, tab backgrounded, tab returned" leaves a remembered key and no instance at all.
+ * Unmuting then reached this function, found `currentMusic` null, and returned — the music was gone
+ * for the rest of the session, and nothing the player could do in the game brought it back short of
+ * walking to the menu, which calls `playMusic` again. The same hole swallowed the music slider: a
+ * resume at level 0 left nothing for a later raise to un-mute.
+ *
+ * Measured before the fix, driving the real event channel: mute, pause, resume, unmute → no sound
+ * instance existed at all. That is BS_02's shape — audio that does not come back when the platform
+ * says it may — and the reason it is fixed here rather than in the two callers is that "the level
+ * went up" arrives from three places (the platform, the SFX-independent music fader, and RESUME).
+ *
+ * **Not while a platform pause is standing**, which includes an ad (see `adGate.ts`): the manager is
+ * muted then, so starting a track would only advance it silently, and the RESUME handler is what
+ * owns restarting from `pausedMusicSeek`.
+ */
 function applyMusicAudibility(): void {
-  if (!currentMusic) return
   const level = effectiveMusic()
+  if (!currentMusic) {
+    if (currentMusicKey && level > 0 && !isPlatformPaused()) playMusic(currentMusicKey, pausedMusicSeek)
+    return
+  }
   // Both, deliberately. `volume` is what the player set; `mute` is belt and braces for the platform
   // path, which used to be the only mechanism here and is what the PAUSE handler still drives.
   currentMusic.volume = MUSIC_VOLUME * level

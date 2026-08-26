@@ -160,6 +160,13 @@ kinds of thing and are documented separately for that reason.
   how many actually had a spotlight so the overlap check cannot pass on a tour that rings nothing.
   It is also the ONLY file here that seeds a save with no tour chapters seen — see "The Guided Tour".
 
+  **`tests/platform/audio.test.ts` is the platform mute**, and it exists because of a rejection
+  another game got: "game audio only activates after the YouTube mute button is turned on and off".
+  Audibility here is a product of two user levels and a platform flag, and the music INSTANCE is
+  destroyed and rebuilt across a platform pause — so there is more than one way to end up silent
+  while the platform says sound is allowed, and one of them was real. It drives `game.events`
+  directly, which is the same channel `platform/yt.ts` relays the real SDK callbacks onto.
+
   **`tests/platform/overlays.test.ts` guards the RENDER ORDER, and it exists because three screens
   had a dead gear button.** `SceneManager.render()` walks its scene array forward and `scene.launch()`
   never reorders it, so an overlay registered EARLIER in `config.ts` than the page that launches it is
@@ -3194,6 +3201,17 @@ mechanism each one describes is unchanged.
 
 App bugs:
 
+- **The music never came back after "YouTube muted, tab backgrounded, tab returned, unmuted".**
+  `YTEvents.PAUSE` DESTROYS the music instance (a stopped-but-kept sound leaks one per cycle) and
+  `RESUME` rebuilds it only if it would be audible — which, while the platform mute is on, it would
+  not. So the unmute that followed reached `applyMusicAudibility`, found no instance to unmute, and
+  returned: the bed was gone for the rest of the session, and nothing in the game brought it back
+  short of walking to the menu, which starts the track itself. The music FADER had the same hole —
+  a resume at level 0 left nothing for a later raise to act on. `applyMusicAudibility` now starts
+  the remembered track when the level rises and there is no instance (never during a platform pause,
+  which includes an ad — `RESUME` owns that restart). **Found by auditing this game against another
+  submission's rejection** ("game audio only activates after the YouTube mute button is turned on and
+  off"), and measured before it was fixed rather than reasoned about. → `tests/platform/audio.test.ts`
 - **Blitz had no visible clock in landscape, which is the whole of the mode.** The countdown is
   appended to the status capsule, and the side panel HIDES that capsule — it is what the two lit
   blocks replace (`layoutHud`'s `statusText.setVisible(!panelled)`). So the one number the mode is

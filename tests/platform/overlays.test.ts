@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { buttonAt, DEFAULT_SAVE, launch, open, startMatch, waitForScene, type GamePage, type Harness } from './harness'
+import { buttonAt, DEFAULT_SAVE, launch, open, startMatch, waitForOverlay, waitForScene, type GamePage, type Harness } from './harness'
 
 /**
  * Four defects a player found in one sitting, each reproduced here so it cannot come back.
@@ -184,6 +184,75 @@ describe('overlays and the board camera', () => {
     })
     assert.equal(await offered(), true, 'the hint was still hidden after three misses')
     assert.ok(found, "today's puzzle has no solution the generator's own search can find")
+    await game.page.close()
+  })
+
+  /**
+   * Retry gives the SAME puzzle back.
+   *
+   * A certification rejection this game has not got but is one line away from: a daily whose Retry
+   * hands the player a different board is a daily nobody can be said to have solved, and it is the
+   * kind of thing that only shows up when somebody loses on purpose and looks twice. `reset()`
+   * rebuilds from the same `record` this scene looked up once for today, and `pristine` is a clone
+   * rather than a regeneration — this walks the real path (a real losing shot, the real result panel,
+   * a real click on Retry) and compares the boards disc for disc.
+   */
+  it('the daily gives the same puzzle back on Retry', async () => {
+    const game = await open(harness, { width: 390, height: 844, save: DEFAULT_SAVE })
+    await game.page.evaluate(() => window.__game!.scene.getScene('MainMenu').scene.start('Daily'))
+    await waitForScene(game.page, 'Daily')
+    await game.page.waitForTimeout(600)
+
+    const board = () =>
+      game.page.evaluate(() => {
+        const scene = window.__game!.scene.getScene('Daily') as unknown as {
+          today: string
+          sim: { discs: { id: number; side: string; x: number; y: number; alive: boolean }[] }
+        }
+        return {
+          today: scene.today,
+          discs: scene.sim.discs.map((d) => `${d.side}:${d.x.toFixed(2)},${d.y.toFixed(2)}`).join(' | '),
+        }
+      })
+
+    const before = await board()
+
+    // A real shot, and a bad one: straight down the board, away from every target.
+    await game.page.evaluate(() => {
+      const scene = window.__game!.scene.getScene('Daily') as unknown as {
+        sim: { discs: { id: number; side: string; alive: boolean; vx: number; vy: number }[] }
+        shotOutcome: unknown
+        attempts: number
+      }
+      const disc = scene.sim.discs.find((d) => d.side === 'player' && d.alive)!
+      scene.attempts = 1
+      scene.shotOutcome = {
+        shooterId: disc.id,
+        shooterSide: 'player',
+        steps: 0,
+        elapsed: 0,
+        timedOut: false,
+        impacts: [],
+        knockedOff: [],
+        splits: [],
+        touchedEnemy: false,
+      }
+      disc.vx = 0
+      disc.vy = 240
+    })
+
+    // The shot, the settle, and the 700ms the result panel waits so the discs can finish falling.
+    await waitForScene(game.page, 'DailyResult')
+    await waitForOverlay(game.page, 'DailyResult')
+
+    const retry = await buttonAt(game.page, 'DailyResult', 'primaryButton')
+    await game.click(retry.x, retry.y)
+    await waitForScene(game.page, 'Daily')
+    await game.page.waitForTimeout(600)
+
+    const after = await board()
+    assert.equal(after.today, before.today, 'the day itself must not have moved under the test')
+    assert.equal(after.discs, before.discs, 'Retry must put the same puzzle back, disc for disc')
     await game.page.close()
   })
 
