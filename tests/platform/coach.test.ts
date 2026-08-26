@@ -64,6 +64,7 @@ const STATE = `(() => {
     body: coach.body.text,
     card: coach.cardRect,
     hole: coach.holeRect,
+    title: coach.steps[coach.index].title,
     next: { x: coach.nextButton.container.x, y: coach.nextButton.container.y, width: coach.nextButton.width, height: coach.nextButton.height },
     skip: { x: coach.skipButton.container.x, y: coach.skipButton.container.y, width: coach.skipButton.width, height: coach.skipButton.height },
     back: { x: coach.backButton.container.x, y: coach.backButton.container.y, width: coach.backButton.width, height: coach.backButton.height },
@@ -234,6 +235,67 @@ test('the menu tour offers the tutorial, on the second card', async () => {
     return coach.steps.map((step) => step.title)
   })
   assert.equal(steps[1], 'coachTutorialTitle', `the tutorial step is missing: ${steps.join(', ')}`)
+  await game.page.close()
+})
+
+/**
+ * **The spotlight follows the control, because the control moves and the hole does not.**
+ *
+ * The step rectangles are SCREEN coordinates read from the host, and they were read once in
+ * `create()`. `layout()` re-placed the card on every resize and never re-asked, so the hole stayed
+ * frozen where the control had been — reported from a desktop as a ring around empty background.
+ * Reproduced here as it was measured: opened at 900x700 and widened, the hole sat at x=302 while its
+ * button had moved to x=860. A phone rotating, or a Playables frame settling to its final size a beat
+ * after boot, is the same event.
+ *
+ * The step is also asserted to keep its IDENTITY across the resize: re-reading can change the list,
+ * and a player must not be moved to a different card by turning their phone.
+ */
+test('the spotlight follows its control across a resize', async () => {
+  const game = await open(harness, { width: 900, height: 700, save: FRESH, expectScene: 'Coach' })
+  await game.page.waitForTimeout(400)
+
+  // Onto the step that rings a button — the first card has no target at all.
+  const first = await read(game)
+  await game.click(first.next.x, first.next.y)
+  await game.page.waitForTimeout(300)
+
+  const onTarget = async (): Promise<{ on: boolean; detail: string; title: string }> =>
+    game.page.evaluate(() => {
+      const coach = window.__game!.scene.getScene('Coach') as unknown as {
+        holeRect: { x: number; y: number; width: number; height: number } | null
+        steps: { title: string }[]
+        index: number
+      }
+      const menu = window.__game!.scene.getScene('MainMenu') as unknown as {
+        tutorialButton?: { container: Phaser.GameObjects.Container }
+      }
+      const hole = coach.holeRect
+      const control = menu.tutorialButton?.container.getBounds()
+      if (!hole || !control) return { on: false, detail: 'no hole or no control', title: coach.steps[coach.index]!.title }
+      const cx = hole.x + hole.width / 2
+      const cy = hole.y + hole.height / 2
+      return {
+        on: cx >= control.x && cx <= control.right && cy >= control.y && cy <= control.bottom,
+        detail: `hole centre ${cx.toFixed(0)},${cy.toFixed(0)} against control ${control.x.toFixed(0)},${control.y.toFixed(0)} ${control.width.toFixed(0)}x${control.height.toFixed(0)}`,
+        title: coach.steps[coach.index]!.title,
+      }
+    })
+
+  const before = await onTarget()
+  assert.ok(before.on, `as opened, the ring was already off its control: ${before.detail}`)
+
+  for (const size of [
+    { width: 2000, height: 1020 },
+    { width: 700, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await game.page.setViewportSize(size)
+    await game.page.waitForTimeout(400)
+    const after = await onTarget()
+    assert.ok(after.on, `at ${size.width}x${size.height} the ring left its control: ${after.detail}`)
+    assert.equal(after.title, before.title, `the resize moved the player to a different card at ${size.width}x${size.height}`)
+  }
   await game.page.close()
 })
 

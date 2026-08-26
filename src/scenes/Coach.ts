@@ -53,6 +53,9 @@ const CARD_MAX_WIDTH = 380
 const CARD_MIN_WIDTH = 230
 const CARD_EDGE_MARGIN = 16
 const CARD_PADDING = 18
+/** How far the answer row may be shrunk to fit a narrow card before its labels stop being readable.
+ * A fraction of `uiScale`, like `MainMenu`'s own button floor. */
+const MIN_ANSWER_SCALE = 0.68
 const GAP = 10
 const TITLE_FONT_SIZE = 20
 const BODY_FONT_SIZE = 15
@@ -364,7 +367,40 @@ export class Coach extends Phaser.Scene {
     })
   }
 
+  /**
+   * Re-asks the host WHERE its controls are, because they move and the hole does not.
+   *
+   * **The rectangles are screen coordinates captured once**, in `create()`, and `layout()` re-placed
+   * the card on a resize without ever re-reading them — so the spotlight stayed frozen where the
+   * control used to be. Reported from a desktop with the ring around empty background: opened at
+   * 900x700 and widened to 2000x1020, the hole sat at x=302 while its button had moved to x=860.
+   * A phone rotating, or a Playables frame settling to its final size a beat after boot, is the same
+   * event.
+   *
+   * **The step is kept by TITLE rather than by index.** Re-reading can change the LIST: a step whose
+   * target has no size is dropped, and which of `Game`'s two "whose shot it is" steps survives
+   * depends on whether the layout built a side panel. Matching on the title keeps the player on the
+   * card they were reading; the index is only clamped when that card is genuinely not in this
+   * layout's tour.
+   *
+   * A host that reports nothing at all is ignored rather than obeyed — blanking a tour mid-resize
+   * would leave the player behind a scrim with no card to dismiss.
+   */
+  private refreshSteps(): void {
+    if (this.finished) return
+    const current = this.steps[this.index]?.title
+    const steps = this.readSteps()
+    if (steps.length === 0) return
+    this.steps = steps
+    const found = current === undefined ? -1 : steps.findIndex((step) => step.title === current)
+    this.index = found >= 0 ? found : Math.min(this.index, steps.length - 1)
+    this.showStep()
+  }
+
   layout(width: number, height: number): void {
+    // FIRST: the card below is measured from this step's text, and the hole it dodges is this step's
+    // rectangle. Both have to be current before either is used.
+    this.refreshSteps()
     const scale = uiScale(width)
 
     this.blocker.setSize(width, height).setPosition(width / 2, height / 2)
@@ -413,40 +449,34 @@ export class Coach extends Phaser.Scene {
     const margin = CARD_EDGE_MARGIN * scale
     const pad = CARD_PADDING * scale
     const gap = GAP * scale
-    const buttonH = buttonHeight('compact', scale)
     /**
-     * The answers are TWO rows on every viewport: the gold one alone on top, Back and Skip under it.
+     * **The answers SHRINK to the card; the card does not grow to the answers.**
      *
-     * **It used to be one row where the card could pay for it and two where it could not**, and the
-     * Back button is what settled the question. Three `compact`-and-`icon` tokens plus their gaps and
-     * the padding want 456 design units against a `CARD_MAX_WIDTH` of 380 — so a one-row form would
-     * either overflow the card (the exact defect this block already carries a comment about) or drag
-     * the card 20% wider than the width chosen for reading a paragraph in. Two rows costs one row of
-     * height and is the same shape at every size, which is worth more here than a saved row: the card
-     * MOVES between steps to dodge the spotlight, and a card that also changed shape as it moved
-     * would read as a different card each time.
+     * This is a fixed-token kit — `compact` is 168 design units whatever its label says — and
+     * `uiScale` floors at 0.8, so on a phone the tokens do not get smaller however small the screen
+     * is. Measured on the built bundle before this: at 360x640 the card came out **92% of the
+     * viewport's width** with each answer taking **42% of it**, against 23% and 8% on a desktop.
+     * Reported from a phone as buttons out of all proportion to the screen, and the numbers agree.
      *
-     * **This is a fixed-token kit, unlike the project this scene came from**, where a button
-     * auto-sizes to its label and a card is always wider than two of them. Here `compact` is 168
-     * design units whatever it says, which is why the card has to be measured against its buttons at
-     * all — they hung out over both edges of their own plate at every viewport before it was, and
-     * worse once the card narrowed to dodge a spotlight. Seen in a screenshot, not in a test:
-     * `coach.test.ts` measured the CARD against the hole and never the buttons against the card,
-     * which it now does.
+     * Two things were making it worse together. The card was widened past `CARD_MAX_WIDTH` to fit
+     * three answers on one line, which on a narrow screen it cannot do anyway — so the widening
+     * bought nothing and the row STACKED, costing a whole extra row of height (258px of a 640px
+     * screen). Shrinking the row instead fixes both: one line at every size, a card back inside its
+     * own reading width, and answers in proportion to the screen they are on.
+     *
+     * The shrink is exact in one division, unlike a row containing an auto-sizing button: every
+     * token here is `SIZES[size].w * scale`, so the row's width is strictly proportional and there
+     * is no text metric to quantise. It costs legibility and not reachability — `gameButton` floors
+     * every hit area at `MIN_TOUCH_TARGET` however small the face is drawn — and it is floored at
+     * {@link MIN_ANSWER_SCALE} so a label cannot shrink to nothing.
      */
-    const backW = buttonWidth('icon', scale)
-    const compactW = buttonWidth('compact', scale)
-    /** All three on one line: Back, Skip, Next. What the card wants to be where the screen pays. */
-    const oneRow = backW + gap + compactW + gap + compactW + pad * 2
-    /** Back and Skip together — the wider of the two stacked rows, and the card's absolute floor. */
-    const sideBySide = backW + gap + compactW + pad * 2
-    /**
-     * One row or two, decided by the CARD's width and therefore constant for a whole tour: Back is
-     * disabled on the first step rather than removed, so no step changes this number. That matters
-     * because the card MOVES between steps to dodge the spotlight, and one that also changed shape
-     * as it moved would read as a different card each time.
-     */
-    const answersH = (w: number) => (w >= oneRow ? buttonH : buttonH * 2 + gap)
+    const rowContent = (s: number) => buttonWidth('icon', s) + GAP * s + buttonWidth('compact', s) * 2 + GAP * s
+    const answerScale = (w: number) =>
+      Math.max(scale * MIN_ANSWER_SCALE, Math.min(scale, (scale * (w - pad * 2)) / rowContent(scale)))
+    /** One row, always — the height of the tallest token in it. `icon` is 64 design units against
+     * `compact`'s 56, so measuring by the word buttons alone leaves Back hanging past the plate. */
+    const answersH = (w: number) => Math.max(buttonHeight('compact', answerScale(w)), buttonHeight('icon', answerScale(w)))
+
     /** Sizes the card to a given width and reports the height that content then needs. */
     const measure = (w: number) => {
       this.body.setWordWrapWidth(w - pad * 2, true)
@@ -454,15 +484,10 @@ export class Coach extends Phaser.Scene {
       return pad * 2 + this.title.height + gap * 0.6 + this.body.height + gap + this.counter.height + gap + answersH(w)
     }
 
-    // Widened to the button row where the viewport can pay for it; where it cannot, the row STACKS
-    // rather than the card overflowing — a narrow phone loses a line of card, not its answers.
-    /**
-     * Widened past `CARD_MAX_WIDTH` where the screen can pay for it, because the three answers on one
-     * line is what keeps the card SHORT — and height is the scarce dimension exactly where this card
-     * has to fit beside a spotlight. A landscape phone is the case: at 740x360 the two-row form came
-     * to 285 tall and ran 7px onto the ring around the navigation bar, which `coach.test.ts` caught.
-     */
-    let cardW = Math.min(width - margin * 2, Math.max(CARD_MAX_WIDTH * scale, oneRow))
+    // Capped at the width a paragraph reads well in, and by the screen below that. The answers follow
+    // the card rather than the other way round — see `answerScale` — so nothing here has to widen the
+    // card to make its own buttons fit, which is what used to drag it to 92% of a phone's screen.
+    let cardW = Math.min(width - margin * 2, CARD_MAX_WIDTH * scale)
     let cardH = measure(cardW)
 
     const cx = width / 2
@@ -505,7 +530,9 @@ export class Coach extends Phaser.Scene {
         // The floor is whichever is larger: the readable minimum, and the WIDEST answer row plus its
         // padding — which since Back joined that row is Back and Skip together, not one button.
         // Narrower than that and the answers hang off the plate again, one row down.
-        const floor = Math.max(CARD_MIN_WIDTH * scale, sideBySide)
+        // The answers shrink WITH the card, so nothing but readability bounds it any more — the
+        // button-driven floor this used to carry is gone with the fixed-width row.
+        const floor = CARD_MIN_WIDTH * scale
         if (band >= floor) {
           cardW = Math.min(cardW, band)
           cardH = measure(cardW)
@@ -546,20 +573,18 @@ export class Coach extends Phaser.Scene {
      * button a thumb is aiming for would be the one place in this game an accidental tap costs the
      * player their place.
      */
-    const rowY = cursor + buttonH / 2
-    if (cardW >= oneRow) {
-      // Back, Skip, Next — reading order, with the gold one where a thumb expects the primary.
-      const left = centreX - (oneRow - pad * 2) / 2
-      this.backButton.layout(left + backW / 2, rowY, scale)
-      this.skipButton.layout(left + backW + gap + compactW / 2, rowY, scale)
-      this.nextButton.layout(left + backW + gap + compactW + gap + compactW / 2, rowY, scale)
-      return
-    }
-    this.nextButton.layout(centreX, rowY, scale)
-    const lowerY = rowY + buttonH + gap
-    const lowerLeft = centreX - (sideBySide - pad * 2) / 2
-    this.backButton.layout(lowerLeft + backW / 2, lowerY, scale)
-    this.skipButton.layout(lowerLeft + backW + gap + compactW / 2, lowerY, scale)
+    // Back, Skip, Next — reading order, with the gold one where a thumb expects the primary, and
+    // Back at the far end FROM it: an accidental tap next to the button being aimed for is the one
+    // place on this card where a misfire costs the player their place.
+    const rowScale = answerScale(cardW)
+    const backW = buttonWidth('icon', rowScale)
+    const compactW = buttonWidth('compact', rowScale)
+    const rowGap = GAP * rowScale
+    const rowY = cursor + answersH(cardW) / 2
+    const left = centreX - (backW + rowGap + compactW * 2 + rowGap) / 2
+    this.backButton.layout(left + backW / 2, rowY, rowScale)
+    this.skipButton.layout(left + backW + rowGap + compactW / 2, rowY, rowScale)
+    this.nextButton.layout(left + backW + rowGap + compactW + rowGap + compactW / 2, rowY, rowScale)
   }
 
   /** The fingertip lands on the hole's centre, with the hand hanging below and to the right of it —

@@ -3170,6 +3170,29 @@ mechanism each one describes is unchanged.
 
 App bugs:
 
+- **The guided tour's spotlight pointed at empty background.** The step rectangles are SCREEN
+  coordinates read from the host, and `Coach` read them once in `create()`; `layout()` re-placed the
+  card on every resize and never re-asked, so the hole stayed frozen where the control had been.
+  Measured: opened at 900x700 and widened to 2000x1020, the hole sat at x=302 while its button had
+  moved to x=860 — which is exactly the screenshot it was reported with. A phone rotating, or a
+  Playables frame settling to its final size a beat after boot, is the same event. **All seven steps
+  were verified on a fresh open at four viewports first, and every one was on target** — the steps
+  were never wrong, the moment they were captured was. `refreshSteps()` re-asks at the top of every
+  layout and keeps the player's place by step TITLE rather than by index, because re-reading can
+  change the list (a step whose target has no size is dropped) and a resize must not move somebody to
+  a different card. → `tests/platform/coach.test.ts`
+- **The tour's answers took 42% of a phone's width and the card took 92%.** Measured on the built
+  bundle at 360x640, against 8% and 23% on a desktop — reported from a phone as buttons out of all
+  proportion, and the numbers agreed. Two things compounded: this is a fixed-token kit (`compact` is
+  168 design units whatever its label says) and `uiScale` floors at 0.8, so the tokens stop shrinking
+  while the screen does not; and the card was being WIDENED past `CARD_MAX_WIDTH` to fit three
+  answers on one line, which a narrow screen cannot do anyway — so the widening bought nothing and
+  the row stacked, costing a whole extra row of height (258px of a 640px screen). The answer row now
+  shrinks to the card instead, one line at every size: the phone's button is 33% and its card 188px
+  tall, and the desktop card is back inside its own reading width. Exact in one division, because
+  every token is `SIZES[size].w * scale` with no text metric to quantise, and floored at
+  `MIN_ANSWER_SCALE`; the hit areas are untouched, since `gameButton` floors every one at
+  `MIN_TOUCH_TARGET`.
 - **The gear did nothing on three screens, and the tutorial's Finish did nothing on a fourth.**
   One cause, and it is a property of Phaser rather than of any of the four: `SceneManager.render()`
   loops `this.scenes` in FORWARD array order — the order `config.ts` registers them in — and
